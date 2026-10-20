@@ -17,13 +17,15 @@ build (kaniko, Containerfile stage `package`: the binary plus
 (fixable HIGH/CRITICAL fail it); on `main` skopeo pushes
 `<registry>/providers/artifact-keeper:<VERSION>-<commit>` and `:latest` to
 the site's Harbor (`<registry>`: key `registry` of Secret `registry-push`),
-as the robot `robot$providers+provider-artifact-keeper-ci`. Then, unless the image's config or a layer names
-the site (its domain, for one), the same tags go to Docker Hub,
-`docker.io/vincentbrobald/provider-artifact-keeper`: the package the
-published copies of the lab use (Secret `dockerhub-push`, keys `username`,
-`token`, same namespace); the repository's overview there is
-`package/OVERVIEW.md` (and a one-line description), set at each push. Bump
-`VERSION` for a release worth naming.
+as the robot `robot$providers+provider-artifact-keeper-ci`. Bump `VERSION`
+for a release worth naming.
+
+The same package, with the same tags, is published as
+`docker.io/vincentbrobald/provider-artifact-keeper`, with
+`package/OVERVIEW.md` as its overview there. To build and host it yourself
+instead, the pipeline is in `examples/tekton/build.yaml` of the published copy
+(the gitops repository's how-to [Build and host the images
+yourself](https://github.com/vincentbrobald/gitops/blob/main/docs/how-to/build-and-host-the-images.md)).
 
 Every image carries the licenses of what it contains under `/licenses`
 (`make licenses`: go-licenses copies each dependency's license, and the

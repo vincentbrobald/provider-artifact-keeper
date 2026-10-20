@@ -1,0 +1,149 @@
+# CI of provider-artifact-keeper, run by Pipelines-as-Code on cluster lab (namespace
+# provider-artifact-keeper): vet and test, check that the generated code is current,
+# build the Crossplane package (an image: the provider and package.yaml;
+# kaniko), scan it (Trivy), and on main push it as
+# providers/artifact-keeper:<VERSION>-<commit> and :latest to the site's registry.
+# Pull requests stop after the scan.
+#
+# {{ ... }}: filled in by PaC from the webhook event; $(...): by Tekton.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: build
+  annotations:
+    pipelinesascode.tekton.dev/on-event: "[pull_request, push]"
+    pipelinesascode.tekton.dev/on-target-branch: "[main]"
+    pipelinesascode.tekton.dev/max-keep-runs: "5"
+spec:
+  timeouts:
+    pipeline: 1h
+  pipelineSpec:
+    workspaces:
+      - name: source
+      - name: git-auth
+      - name: ca
+      - name: registry
+    tasks:
+      # One task: its steps share the emptyDir workspace in one pod.
+      - name: build
+        workspaces:
+          - {name: source, workspace: source}
+          - {name: git-auth, workspace: git-auth}
+          - {name: ca, workspace: ca}
+          - {name: registry, workspace: registry}
+        taskSpec:
+          workspaces:
+            - name: source
+            - name: git-auth
+            - name: ca
+            - name: registry
+          stepTemplate:
+            workingDir: $(workspaces.source.path)
+            env:
+              - {name: HOME, value: /tekton/home}
+              # Go's module and build caches, shared by the Go steps.
+              - {name: GOPATH, value: $(workspaces.source.path)/.go}
+              - {name: GOCACHE, value: $(workspaces.source.path)/.go/cache}
+              - {name: GOFLAGS, value: -buildvcs=false}
+          steps:
+            - name: clone
+              image: docker.io/alpine/git:2.52.0
+              script: |
+                #!/bin/sh
+                set -eu
+                cp $(workspaces.git-auth.path)/.git-credentials $(workspaces.git-auth.path)/.gitconfig "$HOME/"
+                git config --global http.sslCAInfo $(workspaces.ca.path)/site-root-ca.crt
+                git config --global --add safe.directory '*'
+                git init -q src
+                cd src
+                git remote add origin "{{ repo_url }}"
+                git fetch -q --depth 1 origin "{{ revision }}"
+                git checkout -q FETCH_HEAD
+                git log -1 --format='%h %s'
+            # Vet, unit tests, and the generated code (deepcopy, resource
+            # methods, CRDs) must be what `make generate` gives from apis/:
+            # a type change without regenerating fails here. Then the binary
+            # the image takes (make build).
+            - name: test
+              image: docker.io/library/golang:1.26.9-trixie
+              computeResources:
+                requests: {memory: 2Gi}
+                limits: {memory: 6Gi}
+              script: |
+                #!/bin/sh
+                set -eu
+                cd src
+                git config --global --add safe.directory '*'
+                go vet ./...
+                go test ./...
+                make generate
+                if ! git diff --quiet || [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+                  echo "generated code is out of date: run 'make generate' and commit" >&2
+                  git status --short >&2
+                  exit 1
+                fi
+                make build licenses package-yaml VERSION="$(cat VERSION)-$(echo {{ revision }} | cut -c1-7)"
+                # The node's disk is small: free Go's caches before the image build.
+                go clean -cache -modcache
+            - name: image
+              image: ghcr.io/osscontainertools/kaniko:v1.28.6-debug
+              script: |
+                #!/busybox/sh
+                set -eu
+                registry=$(cat "$(workspaces.registry.path)/registry")
+                version="$(cat src/VERSION)-$(echo {{ revision }} | cut -c1-7)"
+                mkdir -p .build
+                /kaniko/executor --context="dir://$(workspaces.source.path)/src" --dockerfile=Containerfile \
+                  --target package --skip-unused-stages \
+                  --build-arg "BASE=$registry/gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3" \
+                  --registry-certificate "$registry=$(workspaces.ca.path)/site-root-ca.crt" \
+                  --label "org.opencontainers.image.revision={{ revision }}" \
+                  --destination "$registry/providers/artifact-keeper:$version" \
+                  --no-push --tar-path .build/image.tar
+            # Fails on HIGH or CRITICAL vulnerabilities that have a fix. Its
+            # database comes through the registry's mirror of ghcr.io.
+            - name: scan
+              image: ghcr.io/aquasecurity/trivy:0.75.0
+              env:
+                - {name: TRIVY_CACHE_DIR, value: /tekton/home/trivy}
+                - {name: SSL_CERT_DIR, value: "$(workspaces.ca.path):/etc/ssl/certs"}
+              script: |
+                #!/bin/sh
+                set -eu
+                registry=$(cat "$(workspaces.registry.path)/registry")
+                trivy image --input .build/image.tar --no-progress \
+                  --db-repository "$registry/ghcr.io/aquasecurity/trivy-db" \
+                  --java-db-repository "$registry/ghcr.io/aquasecurity/trivy-java-db" \
+                  --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
+            # The image is the Crossplane package (Containerfile, stage
+            # package): pushed as is.
+            - name: push
+              image: quay.io/skopeo/stable:v1.22.3
+              script: |
+                #!/bin/sh
+                set -eu
+                if [ "{{ event_type }}" != push ]; then
+                  echo "pull request: package built and scanned, not pushed"
+                  exit 0
+                fi
+                creds=$(workspaces.registry.path)
+                registry=$(cat "$creds/registry")
+                version="$(cat src/VERSION)-$(echo {{ revision }} | cut -c1-7)"
+                for tag in "$version" latest; do
+                  skopeo copy --quiet --dest-cert-dir "$(workspaces.ca.path)" \
+                    --dest-creds "$(cat "$creds/username"):$(cat "$creds/password")" \
+                    docker-archive:.build/image.tar "docker://$registry/providers/artifact-keeper:$tag"
+                  echo "pushed $registry/providers/artifact-keeper:$tag"
+                done
+  workspaces:
+    - name: source
+      emptyDir: {}
+    - name: git-auth
+      secret:
+        secretName: "{{ git_auth_secret }}"
+    - name: ca
+      configMap:
+        name: site-root-ca
+    - name: registry
+      secret:
+        secretName: registry-push
