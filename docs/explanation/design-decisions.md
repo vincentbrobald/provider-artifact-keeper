@@ -14,9 +14,9 @@ from Git: the gitops repository's [Design decisions](https://github.com/vincentb
 domain was used at first, and it must not appear in what is published
 (a sanitized copy of the lab is shared publicly). `brobald.be` is public and
 the owner's.
-The package moved with it, to `docker.io/vincentbrobald/provider-artifact-keeper`:
-Crossplane refuses two packages from the same source, and the old and new
-versions run side by side during the migration.
+The package got a new name with it (`providers/artifact-keeper` in the site's
+registry): Crossplane refuses two packages from the same source, and the old
+and new versions ran side by side during the migration.
 **Cost.** Renaming a group creates new kinds: the objects of the old group
 are migrated to the new one on the cluster (gitops).
 **Revisit if** the provider moves to a shared home (e.g. crossplane-contrib),
