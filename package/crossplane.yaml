@@ -1,0 +1,11 @@
+apiVersion: meta.pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-artifact-keeper
+  annotations:
+    meta.crossplane.io/maintainer: Vincent Brobald
+    meta.crossplane.io/source: https://github.com/vincentbrobald/provider-artifact-keeper
+    meta.crossplane.io/description: Artifact Keeper repositories, permissions, OIDC login, service accounts and tokens.
+spec:
+  capabilities:
+    - SafeStart
