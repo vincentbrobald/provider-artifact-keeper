@@ -10,7 +10,7 @@ apiVersion: pkg.crossplane.io/v1
 kind: Provider
 metadata: {name: provider-artifact-keeper}
 spec:
-  package: registry.example.org/providers/artifact-keeper:<VERSION>-<commit>
+  package: docker.io/vincentbrobald/provider-artifact-keeper:<VERSION>-<commit>
 ---
 apiVersion: artifactkeeper.crossplane.brobald.be/v1beta1
 kind: ClusterProviderConfig

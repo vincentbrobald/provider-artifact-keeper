@@ -7,14 +7,17 @@
 #   make generate      deepcopy, crossplane-runtime methods, CRDs (package/crds)
 #   make test          unit tests
 #   make build         bin/provider
+#   make licenses      bin/licenses: the licenses of everything in bin/provider
+#                      (go-licenses: texts, and the source of MPL modules) and ours
 #   make package-yaml  bin/package.yaml: crossplane.yaml and the CRDs (the
 #                      package's contents; the CI's image build adds it)
 #   make image         the runtime image (podman), .build/image.tar
 
 GO_IMAGE ?= docker.io/library/golang:1.26.9
 VERSION  ?= $(shell cat VERSION)
+GO_LICENSES_VERSION ?= v2.0.1
 
-.PHONY: generate test build package-yaml image podman-%
+.PHONY: generate test build licenses package-yaml image podman-%
 
 generate:
 	cd apis && go generate -tags generate ./...
@@ -25,6 +28,15 @@ test:
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X $(shell go list -m)/internal/version.Version=$(VERSION)" \
 	  -o bin/provider ./cmd/provider
+
+# Our own module is left to the copy of our files below: go-licenses would
+# copy its source (MPL), bin/ included.
+licenses:
+	rm -rf bin/licenses
+	go run github.com/google/go-licenses/v2@$(GO_LICENSES_VERSION) save ./cmd/provider \
+	  --ignore $(shell go list -m) --save_path=bin/licenses
+	mkdir -p bin/licenses/provider-artifact-keeper
+	cp LICENSE bin/licenses/provider-artifact-keeper/
 
 package-yaml:
 	@mkdir -p bin

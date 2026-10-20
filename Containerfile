@@ -3,7 +3,8 @@
 # build).
 #   podman build --target runtime -t provider-artifact-keeper .  # compiles (make image)
 #   kaniko ... --target package                          # CI: bin/provider from
-#                    `make build` and bin/package.yaml from `make package-yaml`
+#                    `make build`, bin/licenses from `make licenses` and
+#                    bin/package.yaml from `make package-yaml`
 # GO_BASE, BASE: the CI passes the same images through the registry's
 # pull-through mirror.
 ARG GO_BASE=docker.io/library/golang:1.26.9-trixie
@@ -17,17 +18,25 @@ RUN go mod download
 COPY . .
 ARG VERSION=dev
 RUN go build -trimpath -ldflags "-s -w -X brobald.be/provider-artifact-keeper/internal/version.Version=${VERSION}" \
-      -o /provider ./cmd/provider
+      -o /provider ./cmd/provider && make licenses
 
+# Every image ships the licenses of what it contains (/licenses) and says
+# where its source is.
 FROM ${BASE} AS runtime
+LABEL org.opencontainers.image.source=https://github.com/vincentbrobald/provider-artifact-keeper \
+      org.opencontainers.image.licenses=MPL-2.0
 COPY --from=build /provider /usr/local/bin/provider
+COPY --from=build /src/bin/licenses /licenses
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/provider"]
 
 # The CI's image: the binary its test step built (make build), so that Go
 # isn't compiled a second time inside the image build.
 FROM ${BASE} AS prebuilt
+LABEL org.opencontainers.image.source=https://github.com/vincentbrobald/provider-artifact-keeper \
+      org.opencontainers.image.licenses=MPL-2.0
 COPY bin/provider /usr/local/bin/provider
+COPY bin/licenses /licenses
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/provider"]
 
