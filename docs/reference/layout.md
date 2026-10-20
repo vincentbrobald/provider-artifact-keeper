@@ -9,6 +9,6 @@ internal/clients/ak  the REST client (only the calls used)
 internal/clients   ProviderConfig -> client
 internal/controller  one external client per kind, setup (safe-start gate)
 cmd/provider       main
-package/           crossplane.yaml, crds/ (generated)
+package/           crossplane.yaml, crds/ (generated), OVERVIEW.md (the Docker Hub overview)
 .tekton/build.yaml CI (Pipelines-as-Code on cluster lab)
 ```

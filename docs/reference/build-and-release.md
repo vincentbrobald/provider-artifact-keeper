@@ -21,7 +21,9 @@ as the robot `robot$providers+provider-artifact-keeper-ci`. Then, unless the ima
 the site (its domain, for one), the same tags go to Docker Hub,
 `docker.io/vincentbrobald/provider-artifact-keeper`: the package the
 published copies of the lab use (Secret `dockerhub-push`, keys `username`,
-`token`, same namespace). Bump `VERSION` for a release worth naming.
+`token`, same namespace); the repository's overview there is
+`package/OVERVIEW.md` (and a one-line description), set at each push. Bump
+`VERSION` for a release worth naming.
 
 Every image carries the licenses of what it contains under `/licenses`
 (`make licenses`: go-licenses copies each dependency's license, and the
