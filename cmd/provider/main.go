@@ -1,9 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Vincent Brobald
 // SPDX-License-Identifier: MPL-2.0
 
-// Command provider is provider-artifact-keeper: Crossplane managed resources
-// for Artifact Keeper (repositories, permissions, OIDC login, service
-// accounts and their tokens), through its REST API.
 package main
 
 import (
@@ -104,8 +101,6 @@ func main() {
 		},
 	}
 
-	// Safe-start: with RBAC to watch CRDs, each controller starts once its
-	// kind is installed (activated by a ManagedResourceActivationPolicy).
 	canWatch, err := canWatchCRDs(context.TODO(), mgr)
 	kingpin.FatalIfError(err, "SafeStart precheck failed")
 	if canWatch {
