@@ -68,7 +68,7 @@ func (e *serviceAccountClient) Observe(ctx context.Context, mg resource.Managed)
 	cr.Status.AtProvider = v1alpha1.ServiceAccountObservation{ID: have.ID, Username: have.Username}
 	cr.SetConditions(xpv2.Available())
 	upToDate := have.IsActive == deref(cr.Spec.ForProvider.Active, true)
-	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: upToDate || meta.WasDeleted(cr), ResourceLateInitialized: adopted}, nil
+	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: upToDate, ResourceLateInitialized: adopted}, nil
 }
 
 // Create creates svc-<name> and records its ID as the external name.

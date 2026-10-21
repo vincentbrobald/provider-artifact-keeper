@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -51,23 +52,13 @@ func (e *APIError) Error() string {
 // IsNotFound reports whether err is an APIError with status 404.
 func IsNotFound(err error) bool {
 	var e *APIError
-	return asAPIError(err, &e) && e.Status == http.StatusNotFound
+	return errors.As(err, &e) && e.Status == http.StatusNotFound
 }
 
 // IsConflict reports whether err is an APIError with status 409.
 func IsConflict(err error) bool {
 	var e *APIError
-	return asAPIError(err, &e) && e.Status == http.StatusConflict
-}
-
-// asAPIError matches err itself, not what it wraps: this package returns
-// APIErrors unwrapped, and callers test an error before wrapping it.
-func asAPIError(err error, target **APIError) bool {
-	e, ok := err.(*APIError) //nolint:errorlint // never wrapped in this package
-	if ok {
-		*target = e
-	}
-	return ok
+	return errors.As(err, &e) && e.Status == http.StatusConflict
 }
 
 // do sends method to /api/v1+path with the bearer token, in (if not nil) as
@@ -101,10 +92,10 @@ func (c *Client) do(ctx context.Context, method, path string, in, out any) error
 	// At most 1 MiB of answer is read; a read error leaves what was read.
 	b, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
 	if res.StatusCode < 200 || res.StatusCode > 299 {
-		// The error keeps the body, trimmed and cut to 300 bytes.
+		// The error keeps the body, trimmed and cut to 300 characters.
 		msg := strings.TrimSpace(string(b))
-		if len(msg) > 300 {
-			msg = msg[:300]
+		if r := []rune(msg); len(r) > 300 {
+			msg = string(r[:300])
 		}
 		return &APIError{Method: method, Path: path, Status: res.StatusCode, Body: msg}
 	}
@@ -122,17 +113,17 @@ type pagination struct {
 
 // Repository is a repository as Artifact Keeper returns it.
 type Repository struct {
-	ID                   string  `json:"id"`
-	Key                  string  `json:"key"`
-	Name                 string  `json:"name"`
-	Description          *string `json:"description"`
-	Format               string  `json:"format"`
-	RepoType             string  `json:"repo_type"`
-	UpstreamURL          *string `json:"upstream_url"`
-	AllowAnonymousAccess bool    `json:"allow_anonymous_access"`
-	QuotaBytes           *int64  `json:"quota_bytes"`
-	StorageUsedBytes     int64   `json:"storage_used_bytes"`
-	CurationDefaultMode  string  `json:"curation_default_action"`
+	ID                    string  `json:"id"`
+	Key                   string  `json:"key"`
+	Name                  string  `json:"name"`
+	Description           *string `json:"description"`
+	Format                string  `json:"format"`
+	RepoType              string  `json:"repo_type"`
+	UpstreamURL           *string `json:"upstream_url"`
+	AllowAnonymousAccess  bool    `json:"allow_anonymous_access"`
+	QuotaBytes            *int64  `json:"quota_bytes"`
+	StorageUsedBytes      int64   `json:"storage_used_bytes"`
+	CurationDefaultAction string  `json:"curation_default_action"`
 }
 
 // CreateRepository is the body of a repository creation.

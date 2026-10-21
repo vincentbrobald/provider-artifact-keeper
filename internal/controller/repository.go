@@ -158,7 +158,7 @@ func (e *repositoryClient) Update(ctx context.Context, mg resource.Managed) (man
 	name, public := displayName(cr), deref(p.Public, false)
 	if err := e.ak.UpdateRepository(ctx, key, ak.UpdateRepository{
 		Name: &name, Description: &p.Description, AllowAnonymousAccess: &public, QuotaBytes: p.QuotaBytes,
-		CurationDefaultAction: r.CurationDefaultMode,
+		CurationDefaultAction: r.CurationDefaultAction,
 	}); err != nil {
 		return managed.ExternalUpdate{}, errors.Wrap(err, "cannot update repository")
 	}

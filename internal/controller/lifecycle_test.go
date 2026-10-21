@@ -134,9 +134,6 @@ func TestServiceAccountLifecycle(t *testing.T) {
 
 	cr.Spec.ForProvider.Active = nil
 	deleting(cr)
-	if obs, _ := e.Observe(ctx, cr); !obs.ResourceUpToDate {
-		t.Fatal("being deleted: reported up to date, so that no update precedes the deletion")
-	}
 	if _, err := e.Delete(ctx, cr); err != nil {
 		t.Fatal(err)
 	}

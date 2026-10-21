@@ -6,11 +6,14 @@ package ak
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // recorder is a fake server's script and log: it answers every request with
@@ -203,16 +206,23 @@ func TestFindUserPages(t *testing.T) {
 }
 
 // TestAPIErrors checks the error of a non-2xx answer: its classification, the
-// body cut to 300 bytes and the message.
+// body cut to 300 characters and the message.
 func TestAPIErrors(t *testing.T) {
 	rec := &recorder{status: http.StatusConflict, reply: strings.Repeat("x", 400)}
 	err := rec.server(t).DeleteRepository(context.Background(), "k")
 	if !IsConflict(err) || IsNotFound(err) {
 		t.Fatalf("a 409: %v", err)
 	}
-	e := err.(*APIError) //nolint:errorlint // unwrapped by design
-	if len(e.Body) != 300 || !strings.HasPrefix(err.Error(), "DELETE /repositories/k: 409 ") {
+	var e *APIError
+	if !errors.As(err, &e) || len([]rune(e.Body)) != 300 || !strings.HasPrefix(err.Error(), "DELETE /repositories/k: 409 ") {
 		t.Fatalf("the body is cut to 300 characters, the message names the call: %q", err.Error()[:40])
+	}
+	if !IsConflict(fmt.Errorf("deleting: %w", err)) {
+		t.Fatal("a wrapped APIError is still recognised")
+	}
+	rec = &recorder{status: http.StatusBadRequest, reply: strings.Repeat("é", 400)}
+	if err = rec.server(t).DeleteRepository(context.Background(), "k"); !errors.As(err, &e) || len([]rune(e.Body)) != 300 || !utf8.ValidString(e.Body) {
+		t.Fatalf("a multi-byte body is cut to 300 whole characters: %d", len([]rune(e.Body)))
 	}
 	if IsConflict(nil) || IsNotFound(io.EOF) {
 		t.Fatal("other errors are neither")
