@@ -24,11 +24,12 @@ const (
 )
 
 // tokenClient manages a Token. Artifact Keeper shows a token's value only
-// when it is made, so a token is never adopted: one of the same name
-// without the external name is revoked and made anew. A token whose scopes
-// or repositories differ, or that expired, is revoked (Update); the next
-// reconcile finds it gone and makes a new one, published in the connection
-// Secret.
+// when it is made, so a token is never adopted, nor changed in place: a
+// token whose scopes or repositories differ, or that expired, reads as
+// missing, and Create replaces it in the same reconcile (it makes the new
+// one, revokes the old one, and the new one is published in the connection
+// Secret). Revoking in Update instead would leave the Secret with a revoked
+// token until the next poll, minutes later.
 type tokenClient struct {
 	kube client.Client
 	ak   *ak.Client
@@ -113,10 +114,12 @@ func (e *tokenClient) Observe(ctx context.Context, mg resource.Managed) (managed
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
-	cr.SetConditions(xpv2.Available())
 	// Name and expiresInDays are not compared: they apply to the next token.
-	upToDate := !have.IsExpired && sameSet(have.Scopes, cr.Spec.ForProvider.Scopes) && sameSet(have.RepositoryIDs, repos)
-	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: upToDate}, nil
+	if have.IsExpired || !sameSet(have.Scopes, cr.Spec.ForProvider.Scopes) || !sameSet(have.RepositoryIDs, repos) {
+		return managed.ExternalObservation{ResourceExists: false}, nil
+	}
+	cr.SetConditions(xpv2.Available())
+	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
 }
 
 func (e *tokenClient) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
@@ -128,41 +131,52 @@ func (e *tokenClient) Create(ctx context.Context, mg resource.Managed) (managed.
 	if err != nil {
 		return managed.ExternalCreation{}, err
 	}
-	p := cr.Spec.ForProvider
-	// A token of this name without our record of it: its value is lost.
-	if old, err := e.find(ctx, saID, func(t ak.Token) bool { return t.Name == p.Name }); err != nil {
-		return managed.ExternalCreation{}, err
-	} else if old != nil {
-		if err := e.ak.RevokeToken(ctx, saID, old.ID); err != nil && !ak.IsNotFound(err) {
-			return managed.ExternalCreation{}, errors.Wrap(err, "cannot revoke the token of the same name")
+	if username == "" {
+		// The ServiceAccount object was created moments ago and not yet
+		// observed: its user name comes from Artifact Keeper.
+		sa, err := e.ak.GetServiceAccount(ctx, saID)
+		if err != nil {
+			return managed.ExternalCreation{}, errors.Wrap(err, "cannot get the service account's user name")
 		}
+		username = sa.Username
 	}
+	p := cr.Spec.ForProvider
 	repos, err := e.repositoryIDs(ctx, cr)
 	if err != nil {
 		return managed.ExternalCreation{}, err
 	}
+	replaced := serverID(cr)
 	t, err := e.ak.CreateToken(ctx, saID, ak.CreateToken{Name: p.Name, Scopes: p.Scopes, RepositoryIDs: repos, ExpiresInDays: p.ExpiresInDays})
 	if err != nil {
 		return managed.ExternalCreation{}, errors.Wrap(err, "cannot create token")
 	}
 	meta.SetExternalName(cr, t.ID)
+	// Then the token it replaces (ours, out of date) and any other of this
+	// name (Artifact Keeper allows several; their values are lost) are
+	// revoked: the old token works until the new one exists.
+	tokens, err := e.ak.ListTokens(ctx, saID)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
+	for _, old := range tokens {
+		if old.ID == t.ID || (old.ID != replaced && old.Name != p.Name) {
+			continue
+		}
+		if err := e.ak.RevokeToken(ctx, saID, old.ID); err != nil && !ak.IsNotFound(err) {
+			return managed.ExternalCreation{}, errors.Wrap(err, "cannot revoke the token it replaces")
+		}
+	}
 	return managed.ExternalCreation{ConnectionDetails: managed.ConnectionDetails{
 		KeyToken:    []byte(t.Token),
 		KeyUsername: []byte(username),
 	}}, nil
 }
 
-// Update revokes the token; the next reconcile makes a new one.
-func (e *tokenClient) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	cr, err := asToken(mg)
-	if err != nil {
-		return managed.ExternalUpdate{}, err
-	}
-	err = e.ak.RevokeToken(ctx, cr.Status.AtProvider.ServiceAccountID, serverID(cr))
-	if err != nil && !ak.IsNotFound(err) {
-		return managed.ExternalUpdate{}, errors.Wrap(err, "cannot revoke token")
-	}
-	return managed.ExternalUpdate{}, nil
+// Update has nothing to do: a token is never changed in place (an
+// out-of-date one reads as missing, and Create replaces it).
+func (e *tokenClient) Update(_ context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
+	_, err := asToken(mg)
+	return managed.ExternalUpdate{}, err
 }
 
 func (e *tokenClient) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {

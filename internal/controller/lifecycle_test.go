@@ -297,6 +297,7 @@ func TestTokenOfTheSameNameAndDeletion(t *testing.T) {
 	const saID = "22222222-2222-2222-2222-222222222222"
 	sa := &v1alpha1.ServiceAccount{ObjectMeta: om("ci")}
 	meta.SetExternalName(sa, saID)
+	sa.Status.AtProvider.Username = "svc-a-ci"
 	repo := &v1alpha1.Repository{ObjectMeta: om("a-npm")}
 	meta.SetExternalName(repo, "a-npm")
 	f, kube, c := setup(t, sa, repo)
@@ -324,8 +325,8 @@ func TestTokenOfTheSameNameAndDeletion(t *testing.T) {
 		t.Fatal("name and expiresInDays apply to the next token only")
 	}
 	f.tokens[saID][0].IsExpired = true
-	if obs, _ := e.Observe(ctx, cr); obs.ResourceUpToDate {
-		t.Fatal("an expired token must be replaced")
+	if obs, _ := e.Observe(ctx, cr); obs.ResourceExists {
+		t.Fatal("an expired token reads as missing, so that Create replaces it")
 	}
 
 	// Deleted together with its account: the ID kept in status still finds
@@ -351,11 +352,34 @@ func TestTokenOfTheSameNameAndDeletion(t *testing.T) {
 	}
 }
 
+// A Token made right after its ServiceAccount, not yet observed: the user
+// name comes from Artifact Keeper.
+func TestTokenUserNameOfANewAccount(t *testing.T) {
+	ctx := context.Background()
+	const saID = "22222222-2222-2222-2222-222222222222"
+	sa := &v1alpha1.ServiceAccount{ObjectMeta: om("ci")}
+	meta.SetExternalName(sa, saID)
+	f, kube, c := setup(t, sa)
+	f.sas[saID] = ak.ServiceAccount{ID: saID, Username: "svc-a-ci", IsActive: true}
+	e := &tokenClient{kube: kube, ak: c}
+	cr := &v1alpha1.Token{ObjectMeta: om("ci"), Spec: v1alpha1.TokenSpec{ForProvider: v1alpha1.TokenParameters{
+		ServiceAccountRef: v1alpha1.LocalReference{Name: "ci"}, Name: "ci", Scopes: []string{"read:artifacts"}}}}
+	cre, err := e.Create(ctx, cr)
+	if err != nil || string(cre.ConnectionDetails[KeyUsername]) != "svc-a-ci" {
+		t.Fatalf("user name published: %q, %v", cre.ConnectionDetails[KeyUsername], err)
+	}
+	delete(f.sas, saID)
+	if _, err := e.Create(ctx, cr); err == nil || !strings.Contains(err.Error(), "user name") {
+		t.Fatalf("no account to ask: %v", err)
+	}
+}
+
 func TestTokenDeleteRevokes(t *testing.T) {
 	ctx := context.Background()
 	const saID = "22222222-2222-2222-2222-222222222222"
 	sa := &v1alpha1.ServiceAccount{ObjectMeta: om("ci")}
 	meta.SetExternalName(sa, saID)
+	sa.Status.AtProvider.Username = "svc-a-ci"
 	f, kube, c := setup(t, sa)
 	e := &tokenClient{kube: kube, ak: c}
 	cr := &v1alpha1.Token{ObjectMeta: om("ci"), Spec: v1alpha1.TokenSpec{ForProvider: v1alpha1.TokenParameters{

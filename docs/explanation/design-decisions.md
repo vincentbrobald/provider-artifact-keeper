@@ -52,11 +52,16 @@ instead of duplicated.
 
 ### Tokens are never adopted
 
-**Decision.** A token of the same name without our external name is revoked
-and made anew; a change of scopes or repositories, or expiry, revokes it and
-a new one is made.
+**Decision.** Without our external name, a new token is made and any token
+of the same name revoked. A token is never changed in place either: one whose
+scopes or repositories differ, or that expired, reads as missing, so that
+Crossplane replaces it in the same reconcile (the new token is made, then the
+old one revoked).
 **Why.** Artifact Keeper shows a token's value only when it is made: an
 adopted token's value would be unknown, and the connection Secret empty.
+Revoking an out-of-date token in an update would leave the Secret with a
+revoked token until the next poll (minutes); making the new one first keeps
+the old one working until the new one exists.
 
 ### Groups come from the OIDC login, never pre-created
 

@@ -341,18 +341,24 @@ func TestTokenPublishedAndRotated(t *testing.T) {
 	if obs, _ := e.Observe(ctx, cr); !obs.ResourceUpToDate {
 		t.Fatal("fresh token must be up to date")
 	}
+	old := meta.GetExternalName(cr)
 	cr.Spec.ForProvider.Scopes = []string{"read:artifacts", "write:artifacts"}
-	if obs, _ := e.Observe(ctx, cr); obs.ResourceUpToDate {
-		t.Fatal("a scope change must show")
-	}
-	if _, err := e.Update(ctx, cr); err != nil {
-		t.Fatal(err)
-	}
 	if obs, _ := e.Observe(ctx, cr); obs.ResourceExists {
-		t.Fatal("the revoked token must read as gone, so that a new one is made")
+		t.Fatal("a token with other scopes reads as missing, so that Create replaces it at once")
 	}
-	if len(f.tokens["22222222-2222-2222-2222-222222222222"]) != 0 {
-		t.Fatal("old token not revoked")
+	if _, err := e.Update(ctx, cr); err != nil || len(f.tokens["22222222-2222-2222-2222-222222222222"]) != 1 {
+		t.Fatalf("Update changes nothing: %v", err)
+	}
+	cre, err = e.Create(ctx, cr)
+	if err != nil || meta.GetExternalName(cr) == old || !strings.HasPrefix(string(cre.ConnectionDetails[KeyToken]), "secret-") {
+		t.Fatalf("a new token, published: %v", err)
+	}
+	ts := f.tokens["22222222-2222-2222-2222-222222222222"]
+	if len(ts) != 1 || ts[0].ID != meta.GetExternalName(cr) || len(ts[0].Scopes) != 2 {
+		t.Fatalf("the old token revoked, the new one with both scopes: %+v", ts)
+	}
+	if obs, _ := e.Observe(ctx, cr); !obs.ResourceUpToDate {
+		t.Fatal("the new token is up to date")
 	}
 }
 

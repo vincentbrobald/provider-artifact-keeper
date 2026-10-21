@@ -12,14 +12,16 @@ import (
 // connection Secret (key token; the account's user name in key username).
 // The external name is the token's ID. Artifact Keeper shows a token's value
 // only when it is made, so a token is never adopted: without an external
-// name, a token of the same name is revoked and a new one made. A change of
-// scopes or repositories, or the token's expiry, revokes it and makes a new
-// one; a change of name or expiresInDays applies only to the next token.
+// name, a new one is made and any token of the same name revoked. A change
+// of scopes or repositories, or the token's expiry, replaces it (a new one
+// is made, then the old one revoked); a change of name or expiresInDays
+// applies only to the next token.
 type TokenParameters struct {
 	// The ServiceAccount object (this namespace) the token belongs to.
 	ServiceAccountRef LocalReference `json:"serviceAccountRef"`
 
-	// The token's name in Artifact Keeper, unique per service account.
+	// The token's name in Artifact Keeper. Other tokens of the account with
+	// this name are revoked when the token is made.
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
