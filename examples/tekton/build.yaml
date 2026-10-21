@@ -65,7 +65,7 @@ spec:
             # a type change without regenerating fails here. Then the binary
             # the image takes (make build).
             - name: test
-              image: docker.io/library/golang:1.26.9-trixie
+              image: docker.io/library/golang:1.26.10-trixie
               computeResources:
                 requests: {memory: 2Gi}
                 limits: {memory: 6Gi}

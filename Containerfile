@@ -7,7 +7,7 @@
 #                    bin/package.yaml from `make package-yaml`
 # GO_BASE, BASE: the CI passes the same images through the registry's
 # pull-through mirror.
-ARG GO_BASE=docker.io/library/golang:1.26.9-trixie
+ARG GO_BASE=docker.io/library/golang:1.26.10-trixie
 ARG BASE=gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
 
 FROM ${GO_BASE} AS build

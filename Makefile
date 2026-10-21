@@ -13,7 +13,7 @@
 #                      package's contents; the CI's image build adds it)
 #   make image         the runtime image (podman), .build/image.tar
 
-GO_IMAGE ?= docker.io/library/golang:1.26.9
+GO_IMAGE ?= docker.io/library/golang:1.26.10
 VERSION  ?= $(shell cat VERSION)
 GO_LICENSES_VERSION ?= v2.0.1
 
