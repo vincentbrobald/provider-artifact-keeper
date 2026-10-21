@@ -17,8 +17,6 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
-// serviceAccountClient manages a ServiceAccount (svc-<name>): the external
-// name is its ID; without one, svc-<name> is adopted if it exists.
 type serviceAccountClient struct {
 	kube client.Client
 	ak   *ak.Client
@@ -61,9 +59,6 @@ func (e *serviceAccountClient) Observe(ctx context.Context, mg resource.Managed)
 	}
 	cr.Status.AtProvider = v1alpha1.ServiceAccountObservation{ID: have.ID, Username: have.Username}
 	cr.SetConditions(xpv2.Available())
-	// Only activity is managed (the description is set at creation). Being
-	// deleted, it is reported up to date so that no update precedes the
-	// deletion.
 	upToDate := have.IsActive == deref(cr.Spec.ForProvider.Active, true)
 	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: upToDate || meta.WasDeleted(cr), ResourceLateInitialized: adopted}, nil
 }

@@ -17,7 +17,6 @@ type ProviderConfigSpec struct {
 	Credentials ProviderCredentials `json:"credentials"`
 }
 
-// ProviderCredentials are where the credentials come from.
 type ProviderCredentials struct {
 	// The kind of source: Secret (JSON or flat keys), or JSON from the
 	// environment or a file.
@@ -27,7 +26,6 @@ type ProviderCredentials struct {
 	xpv2.CommonCredentialSelectors `json:",inline"`
 }
 
-// ProviderConfigStatus is the status of a ProviderConfig.
 type ProviderConfigStatus struct {
 	xpv2.ProviderConfigStatus `json:",inline"`
 }
@@ -50,7 +48,6 @@ type ProviderConfig struct {
 
 // +kubebuilder:object:root=true
 
-// ProviderConfigList contains a list of ProviderConfig.
 type ProviderConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
@@ -75,7 +72,6 @@ type ClusterProviderConfig struct {
 
 // +kubebuilder:object:root=true
 
-// ClusterProviderConfigList contains a list of ClusterProviderConfig.
 type ClusterProviderConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
@@ -89,8 +85,6 @@ type ClusterProviderConfigList struct {
 // +kubebuilder:printcolumn:name="RESOURCE-NAME",type="string",JSONPath=".resourceRef.name"
 // +kubebuilder:resource:scope=Namespaced,categories={crossplane,provider,artifactkeeper}
 
-// A ProviderConfigUsage records that a managed resource uses a
-// (Cluster)ProviderConfig.
 type ProviderConfigUsage struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -100,7 +94,6 @@ type ProviderConfigUsage struct {
 
 // +kubebuilder:object:root=true
 
-// ProviderConfigUsageList contains a list of ProviderConfigUsage.
 type ProviderConfigUsageList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

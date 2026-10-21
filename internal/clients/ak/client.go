@@ -18,7 +18,6 @@ import (
 	"time"
 )
 
-// Client calls one Artifact Keeper server with an API token.
 type Client struct {
 	base  string
 	token string
@@ -26,8 +25,6 @@ type Client struct {
 }
 
 // New returns a client of the server at baseURL (https://host, no path).
-// The token is an API token (Authorization: Bearer); TLS trust is the
-// system's (SSL_CERT_DIR / SSL_CERT_FILE).
 func New(baseURL, token string, hc *http.Client) *Client {
 	if hc == nil {
 		hc = &http.Client{Timeout: 30 * time.Second}
@@ -35,7 +32,6 @@ func New(baseURL, token string, hc *http.Client) *Client {
 	return &Client{base: strings.TrimRight(baseURL, "/"), token: token, http: hc}
 }
 
-// APIError is an answer other than 2xx.
 type APIError struct {
 	Method, Path string
 	Status       int
@@ -46,13 +42,11 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("%s %s: %d %s", e.Method, e.Path, e.Status, e.Body)
 }
 
-// IsNotFound tells whether err is a 404 answer.
 func IsNotFound(err error) bool {
 	var e *APIError
 	return asAPIError(err, &e) && e.Status == http.StatusNotFound
 }
 
-// IsConflict tells whether err is a 409 answer.
 func IsConflict(err error) bool {
 	var e *APIError
 	return asAPIError(err, &e) && e.Status == http.StatusConflict
@@ -68,9 +62,6 @@ func asAPIError(err error, target **APIError) bool {
 	return ok
 }
 
-// do sends in as JSON (when not nil) to /api/v1<path> and decodes the
-// answer into out (when not nil). An answer other than 2xx is an APIError,
-// with at most the first 300 characters of its body.
 func (c *Client) do(ctx context.Context, method, path string, in, out any) error {
 	var body io.Reader
 	if in != nil {
@@ -108,15 +99,11 @@ func (c *Client) do(ctx context.Context, method, path string, in, out any) error
 	return json.Unmarshal(b, out)
 }
 
-// pagination is the paging information of a paged list.
 type pagination struct {
 	Page       int `json:"page"`
 	TotalPages int `json:"total_pages"`
 }
 
-// --- Repositories -----------------------------------------------------------
-
-// Repository is GET /repositories/{key}.
 type Repository struct {
 	ID                   string  `json:"id"`
 	Key                  string  `json:"key"`
@@ -131,7 +118,6 @@ type Repository struct {
 	CurationDefaultMode  string  `json:"curation_default_action"`
 }
 
-// CreateRepository is POST /repositories.
 type CreateRepository struct {
 	Key                  string `json:"key"`
 	Name                 string `json:"name"`
@@ -143,7 +129,6 @@ type CreateRepository struct {
 	QuotaBytes           *int64 `json:"quota_bytes,omitempty"`
 }
 
-// UpdateRepository is PATCH /repositories/{key}: unset fields stay.
 // CurationDefaultAction is required by the API: send the current one.
 type UpdateRepository struct {
 	Name                  *string `json:"name,omitempty"`
@@ -153,14 +138,11 @@ type UpdateRepository struct {
 	CurationDefaultAction string  `json:"curation_default_action"`
 }
 
-// Member is a member of a virtual repository, as PUT .../members takes it.
 type Member struct {
 	Key      string `json:"member_key"`
 	Priority int    `json:"priority"`
 }
 
-// memberRow is a member as GET .../members returns it: the same, under
-// another key name (member_repo_key).
 type memberRow struct {
 	Key      string `json:"member_repo_key"`
 	Priority int    `json:"priority"`
@@ -168,29 +150,24 @@ type memberRow struct {
 
 func esc(s string) string { return url.PathEscape(s) }
 
-// GetRepository returns the repository with this key.
 func (c *Client) GetRepository(ctx context.Context, key string) (*Repository, error) {
 	r := &Repository{}
 	return r, c.do(ctx, http.MethodGet, "/repositories/"+esc(key), nil, r)
 }
 
-// CreateRepository makes a repository.
 func (c *Client) CreateRepository(ctx context.Context, in CreateRepository) (*Repository, error) {
 	r := &Repository{}
 	return r, c.do(ctx, http.MethodPost, "/repositories", in, r)
 }
 
-// UpdateRepository changes a repository's settings.
 func (c *Client) UpdateRepository(ctx context.Context, key string, in UpdateRepository) error {
 	return c.do(ctx, http.MethodPatch, "/repositories/"+esc(key), in, nil)
 }
 
-// DeleteRepository deletes a repository and its packages.
 func (c *Client) DeleteRepository(ctx context.Context, key string) error {
 	return c.do(ctx, http.MethodDelete, "/repositories/"+esc(key), nil, nil)
 }
 
-// GetMembers returns a virtual repository's members, by priority.
 func (c *Client) GetMembers(ctx context.Context, key string) ([]Member, error) {
 	var out struct {
 		Members []memberRow `json:"members"`
@@ -206,7 +183,6 @@ func (c *Client) GetMembers(ctx context.Context, key string) ([]Member, error) {
 	return m, nil
 }
 
-// SetMembers replaces a virtual repository's members.
 func (c *Client) SetMembers(ctx context.Context, key string, m []Member) error {
 	return c.do(ctx, http.MethodPut, "/repositories/"+esc(key)+"/members", map[string]any{"members": m}, nil)
 }
@@ -219,16 +195,12 @@ func sortMembers(m []Member) {
 	}
 }
 
-// --- Groups and users -------------------------------------------------------
-
-// Group is an item of GET /groups.
 type Group struct {
 	ID             string  `json:"id"`
 	Name           string  `json:"name"`
 	ExternalSource *string `json:"external_source"`
 }
 
-// FindGroup returns the group with exactly this name, or nil.
 func (c *Client) FindGroup(ctx context.Context, name string) (*Group, error) {
 	for page := 1; ; page++ {
 		var out struct {
@@ -250,14 +222,11 @@ func (c *Client) FindGroup(ctx context.Context, name string) (*Group, error) {
 	}
 }
 
-// User is an item of GET /users.
 type User struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
 }
 
-// FindUser returns the user (or service account) with exactly this name,
-// or nil.
 func (c *Client) FindUser(ctx context.Context, name string) (*User, error) {
 	for page := 1; ; page++ {
 		var out struct {
@@ -279,10 +248,6 @@ func (c *Client) FindUser(ctx context.Context, name string) (*User, error) {
 	}
 }
 
-// --- Permissions ------------------------------------------------------------
-
-// Permission is GET /permissions/{id}; also the body of POST and PUT
-// (without ID).
 type Permission struct {
 	ID            string   `json:"id,omitempty"`
 	PrincipalType string   `json:"principal_type"`
@@ -292,15 +257,13 @@ type Permission struct {
 	Actions       []string `json:"actions"`
 }
 
-// GetPermission returns the permission with this ID.
 func (c *Client) GetPermission(ctx context.Context, id string) (*Permission, error) {
 	p := &Permission{}
 	return p, c.do(ctx, http.MethodGet, "/permissions/"+esc(id), nil, p)
 }
 
-// FindPermission returns the permission of this principal on this target,
-// or nil. The server filters by the four values, so the answer holds at
-// most one permission (one per principal and target): one page is enough.
+// The server filters by the four values, so the answer holds at most one
+// permission (one per principal and target): one page is enough.
 func (c *Client) FindPermission(ctx context.Context, principalType, principalID, targetType, targetID string) (*Permission, error) {
 	var out struct {
 		Items []Permission `json:"items"`
@@ -319,27 +282,21 @@ func (c *Client) FindPermission(ctx context.Context, principalType, principalID,
 	return nil, nil
 }
 
-// CreatePermission grants a permission.
 func (c *Client) CreatePermission(ctx context.Context, in Permission) (*Permission, error) {
 	in.ID = ""
 	p := &Permission{}
 	return p, c.do(ctx, http.MethodPost, "/permissions", in, p)
 }
 
-// UpdatePermission replaces a permission.
 func (c *Client) UpdatePermission(ctx context.Context, id string, in Permission) error {
 	in.ID = ""
 	return c.do(ctx, http.MethodPut, "/permissions/"+esc(id), in, nil)
 }
 
-// DeletePermission revokes a permission.
 func (c *Client) DeletePermission(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/permissions/"+esc(id), nil, nil)
 }
 
-// --- OIDC providers ---------------------------------------------------------
-
-// OIDCProvider is GET /admin/sso/oidc/{id}.
 type OIDCProvider struct {
 	ID                string         `json:"id"`
 	Name              string         `json:"name"`
@@ -354,8 +311,6 @@ type OIDCProvider struct {
 	MapGroupsToGroups bool           `json:"map_groups_to_groups"`
 }
 
-// OIDCProviderRequest is the body of POST and PUT /admin/sso/oidc: the
-// whole desired configuration, client secret included.
 type OIDCProviderRequest struct {
 	Name                    string         `json:"name"`
 	IssuerURL               string         `json:"issuer_url"`
@@ -371,13 +326,11 @@ type OIDCProviderRequest struct {
 	AdminGroup              *string        `json:"admin_group,omitempty"`
 }
 
-// GetOIDCProvider returns the provider with this ID.
 func (c *Client) GetOIDCProvider(ctx context.Context, id string) (*OIDCProvider, error) {
 	p := &OIDCProvider{}
 	return p, c.do(ctx, http.MethodGet, "/admin/sso/oidc/"+esc(id), nil, p)
 }
 
-// FindOIDCProvider returns the provider with this name, or nil.
 func (c *Client) FindOIDCProvider(ctx context.Context, name string) (*OIDCProvider, error) {
 	var out []OIDCProvider
 	if err := c.do(ctx, http.MethodGet, "/admin/sso/oidc", nil, &out); err != nil {
@@ -391,28 +344,22 @@ func (c *Client) FindOIDCProvider(ctx context.Context, name string) (*OIDCProvid
 	return nil, nil
 }
 
-// CreateOIDCProvider adds an OIDC login.
 func (c *Client) CreateOIDCProvider(ctx context.Context, in OIDCProviderRequest) (*OIDCProvider, error) {
 	p := &OIDCProvider{}
 	return p, c.do(ctx, http.MethodPost, "/admin/sso/oidc", in, p)
 }
 
-// UpdateOIDCProvider changes an OIDC login. It replaces the attribute
-// mapping as a whole (attribute_mapping_replace), so that keys the request
-// no longer sets go away.
+// It replaces the attribute mapping as a whole (attribute_mapping_replace),
+// so that keys the request no longer sets go away.
 func (c *Client) UpdateOIDCProvider(ctx context.Context, id string, in OIDCProviderRequest) error {
 	in.AttributeMappingReplace = true
 	return c.do(ctx, http.MethodPut, "/admin/sso/oidc/"+esc(id), in, nil)
 }
 
-// DeleteOIDCProvider removes an OIDC login.
 func (c *Client) DeleteOIDCProvider(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/admin/sso/oidc/"+esc(id), nil, nil)
 }
 
-// --- Service accounts and tokens --------------------------------------------
-
-// ServiceAccount is GET /service-accounts/{id}.
 type ServiceAccount struct {
 	ID          string  `json:"id"`
 	Username    string  `json:"username"`
@@ -420,14 +367,12 @@ type ServiceAccount struct {
 	IsActive    bool    `json:"is_active"`
 }
 
-// GetServiceAccount returns the service account with this ID.
 func (c *Client) GetServiceAccount(ctx context.Context, id string) (*ServiceAccount, error) {
 	s := &ServiceAccount{}
 	return s, c.do(ctx, http.MethodGet, "/service-accounts/"+esc(id), nil, s)
 }
 
-// FindServiceAccount returns the service account with this user name
-// (svc-<name>), or nil. The list isn't paged: it holds every account.
+// The list isn't paged: it holds every account.
 func (c *Client) FindServiceAccount(ctx context.Context, username string) (*ServiceAccount, error) {
 	var out struct {
 		Items []ServiceAccount `json:"items"`
@@ -454,19 +399,17 @@ func (c *Client) CreateServiceAccount(ctx context.Context, name, description str
 	return s, c.do(ctx, http.MethodPost, "/service-accounts", in, s)
 }
 
-// UpdateServiceAccount changes display name and activity. A nil one is sent
-// as JSON null, which Artifact Keeper takes as "unchanged".
+// A nil argument is sent as JSON null, which Artifact Keeper takes as
+// "unchanged".
 func (c *Client) UpdateServiceAccount(ctx context.Context, id string, displayName *string, active *bool) error {
 	return c.do(ctx, http.MethodPatch, "/service-accounts/"+esc(id),
 		map[string]any{"display_name": displayName, "is_active": active}, nil)
 }
 
-// DeleteServiceAccount deletes a service account (and its tokens).
 func (c *Client) DeleteServiceAccount(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/service-accounts/"+esc(id), nil, nil)
 }
 
-// Token is an item of GET /service-accounts/{id}/tokens.
 type Token struct {
 	ID            string   `json:"id"`
 	Name          string   `json:"name"`
@@ -477,7 +420,6 @@ type Token struct {
 	IsExpired     bool     `json:"is_expired"`
 }
 
-// CreateToken is POST /service-accounts/{id}/tokens.
 type CreateToken struct {
 	Name          string   `json:"name"`
 	Scopes        []string `json:"scopes"`
@@ -492,7 +434,6 @@ type CreatedToken struct {
 	ExpiresAt *string `json:"expires_at"`
 }
 
-// ListTokens returns a service account's tokens.
 func (c *Client) ListTokens(ctx context.Context, serviceAccountID string) ([]Token, error) {
 	var out struct {
 		Items []Token `json:"items"`
@@ -500,13 +441,11 @@ func (c *Client) ListTokens(ctx context.Context, serviceAccountID string) ([]Tok
 	return out.Items, c.do(ctx, http.MethodGet, "/service-accounts/"+esc(serviceAccountID)+"/tokens", nil, &out)
 }
 
-// CreateToken makes a token of a service account.
 func (c *Client) CreateToken(ctx context.Context, serviceAccountID string, in CreateToken) (*CreatedToken, error) {
 	t := &CreatedToken{}
 	return t, c.do(ctx, http.MethodPost, "/service-accounts/"+esc(serviceAccountID)+"/tokens", in, t)
 }
 
-// RevokeToken revokes a token.
 func (c *Client) RevokeToken(ctx context.Context, serviceAccountID, tokenID string) error {
 	return c.do(ctx, http.MethodDelete, "/service-accounts/"+esc(serviceAccountID)+"/tokens/"+esc(tokenID), nil, nil)
 }

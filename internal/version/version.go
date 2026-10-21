@@ -5,5 +5,4 @@
 // (-ldflags -X .../internal/version.Version=...).
 package version
 
-// Version of the provider.
 var Version = "dev"

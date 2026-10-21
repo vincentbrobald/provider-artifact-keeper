@@ -11,17 +11,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// Group and version of the managed resources.
 const (
 	Group   = "artifactkeeper.crossplane.brobald.be"
 	Version = "v1alpha1"
 )
 
 var (
-	// SchemeGroupVersion is the group version of these kinds.
 	SchemeGroupVersion = schema.GroupVersion{Group: Group, Version: Version}
-	// SchemeBuilder registers them.
-	SchemeBuilder = runtime.NewSchemeBuilder(func(s *runtime.Scheme) error {
+	SchemeBuilder      = runtime.NewSchemeBuilder(func(s *runtime.Scheme) error {
 		s.AddKnownTypes(SchemeGroupVersion,
 			&Repository{}, &RepositoryList{},
 			&Permission{}, &PermissionList{},
@@ -32,7 +29,6 @@ var (
 		metav1.AddToGroupVersion(s, SchemeGroupVersion)
 		return nil
 	})
-	// AddToScheme adds them to a scheme.
 	AddToScheme = SchemeBuilder.AddToScheme
 )
 
@@ -40,7 +36,6 @@ func gvk(o any) schema.GroupVersionKind {
 	return SchemeGroupVersion.WithKind(reflect.TypeOf(o).Name())
 }
 
-// The managed resources' kinds.
 var (
 	RepositoryGroupVersionKind     = gvk(Repository{})
 	PermissionGroupVersionKind     = gvk(Permission{})

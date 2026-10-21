@@ -8,9 +8,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// RepositoryParameters are what Artifact Keeper's repository should be. Its
-// key (the path segment clients use: /maven/<key>, /npm/<key>, ...) is the
-// external name, by default the object's name.
+// Its key (the path segment clients use: /maven/<key>, /npm/<key>, ...) is
+// the external name, by default the object's name.
 type RepositoryParameters struct {
 	// Display name; the key when empty.
 	// +optional
@@ -54,7 +53,6 @@ type RepositoryParameters struct {
 	Members []RepositoryMember `json:"members,omitempty"`
 }
 
-// RepositoryMember is one member of a virtual repository.
 // +kubebuilder:validation:XValidation:rule="has(self.repositoryRef) != has(self.key)",message="exactly one of repositoryRef and key"
 type RepositoryMember struct {
 	// A Repository object of this namespace.
@@ -66,28 +64,21 @@ type RepositoryMember struct {
 	Key string `json:"key,omitempty"`
 }
 
-// RepositoryObservation is what Artifact Keeper reports about the
-// repository.
 type RepositoryObservation struct {
-	// The repository's ID (references from permissions and tokens use it).
-	ID string `json:"id,omitempty"`
-	// Its package format.
+	ID     string `json:"id,omitempty"`
 	Format string `json:"format,omitempty"`
 	// local, remote or virtual.
-	Type string `json:"type,omitempty"`
-	// Bytes its packages take.
-	StorageUsedBytes int64 `json:"storageUsedBytes,omitempty"`
+	Type             string `json:"type,omitempty"`
+	StorageUsedBytes int64  `json:"storageUsedBytes,omitempty"`
 	// A virtual repository's member keys, in priority order.
 	Members []string `json:"members,omitempty"`
 }
 
-// RepositorySpec defines the desired state of a Repository.
 type RepositorySpec struct {
 	xpv2.ManagedResourceSpec `json:",inline"`
 	ForProvider              RepositoryParameters `json:"forProvider"`
 }
 
-// RepositoryStatus represents the observed state of a Repository.
 type RepositoryStatus struct {
 	xpv2.ManagedResourceStatus `json:",inline"`
 	AtProvider                 RepositoryObservation `json:"atProvider,omitempty"`
@@ -116,7 +107,6 @@ type Repository struct {
 
 // +kubebuilder:object:root=true
 
-// RepositoryList contains a list of Repository.
 type RepositoryList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

@@ -34,9 +34,6 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: |-
-          A Permission grants a group, user or service account actions on a
-          repository.
         properties:
           apiVersion:
             description: |-
@@ -56,14 +53,12 @@ spec:
           metadata:
             type: object
           spec:
-            description: PermissionSpec defines the desired state of a Permission.
             properties:
               forProvider:
                 description: |-
-                  PermissionParameters are who may do what on a repository. Artifact Keeper
-                  allows one permission per principal and repository: the external name is
-                  the permission's ID, and without one the permission of the same principal
-                  on the same repository is adopted.
+                  Artifact Keeper allows one permission per principal and repository: the
+                  external name is the permission's ID, and without one the permission of
+                  the same principal on the same repository is adopted.
                 properties:
                   actions:
                     description: 'Actions: read, write, delete, admin (Artifact Keeper''s
@@ -178,21 +173,15 @@ spec:
             - forProvider
             type: object
           status:
-            description: PermissionStatus represents the observed state of a Permission.
             properties:
               atProvider:
-                description: |-
-                  PermissionObservation is what Artifact Keeper reports about the
-                  permission.
                 properties:
                   principalId:
-                    description: The principal's ID.
                     type: string
                   principalType:
                     description: group, user or service_account.
                     type: string
                   repositoryId:
-                    description: The repository's ID.
                     type: string
                 type: object
               conditions:

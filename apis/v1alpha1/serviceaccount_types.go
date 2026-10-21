@@ -8,9 +8,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ServiceAccountParameters are a non-human user (e.g. a team's CI). Artifact
-// Keeper names it svc-<name>. The external name is its ID; without one,
-// svc-<name> is adopted if it exists.
+// Artifact Keeper names it svc-<name>. The external name is its ID; without
+// one, svc-<name> is adopted if it exists.
 type ServiceAccountParameters struct {
 	// Without the svc- prefix Artifact Keeper adds. Can't change.
 	// +kubebuilder:validation:MinLength=1
@@ -21,13 +20,11 @@ type ServiceAccountParameters struct {
 	// +optional
 	Description string `json:"description,omitempty"`
 
-	// Whether the account is active. Default true.
+	// Default true.
 	// +optional
 	Active *bool `json:"active,omitempty"`
 }
 
-// ServiceAccountObservation is what Artifact Keeper reports about the
-// account.
 type ServiceAccountObservation struct {
 	// The account's ID (also the external name).
 	ID string `json:"id,omitempty"`
@@ -35,13 +32,11 @@ type ServiceAccountObservation struct {
 	Username string `json:"username,omitempty"`
 }
 
-// ServiceAccountSpec defines the desired state of a ServiceAccount.
 type ServiceAccountSpec struct {
 	xpv2.ManagedResourceSpec `json:",inline"`
 	ForProvider              ServiceAccountParameters `json:"forProvider"`
 }
 
-// ServiceAccountStatus represents the observed state of a ServiceAccount.
 type ServiceAccountStatus struct {
 	xpv2.ManagedResourceStatus `json:",inline"`
 	AtProvider                 ServiceAccountObservation `json:"atProvider,omitempty"`
@@ -55,8 +50,7 @@ type ServiceAccountStatus struct {
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:resource:scope=Namespaced,categories={crossplane,managed,artifactkeeper}
 
-// A ServiceAccount is an Artifact Keeper service account. Permissions name
-// it (principal.serviceAccountRef); Tokens authenticate as it.
+// A ServiceAccount is an Artifact Keeper service account.
 type ServiceAccount struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -67,7 +61,6 @@ type ServiceAccount struct {
 
 // +kubebuilder:object:root=true
 
-// ServiceAccountList contains a list of ServiceAccount.
 type ServiceAccountList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

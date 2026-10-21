@@ -34,9 +34,6 @@ spec:
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: |-
-          A ProviderConfigUsage records that a managed resource uses a
-          (Cluster)ProviderConfig.
         properties:
           apiVersion:
             description: |-

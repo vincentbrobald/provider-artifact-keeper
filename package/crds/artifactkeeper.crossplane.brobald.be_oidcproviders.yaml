@@ -56,12 +56,11 @@ spec:
           metadata:
             type: object
           spec:
-            description: OIDCProviderSpec defines the desired state of an OIDCProvider.
             properties:
               forProvider:
                 description: |-
-                  OIDCProviderParameters are an OIDC login of Artifact Keeper. The external
-                  name is its ID; without one, the provider of the same name is adopted.
+                  The external name is its ID; without one, the provider of the same name
+                  is adopted.
                 properties:
                   adminGroup:
                     description: Members of this IdP group are admins.
@@ -70,7 +69,6 @@ spec:
                     description: Create users at their first login. Default true.
                     type: boolean
                   clientID:
-                    description: The client's ID at the IdP.
                     minLength: 1
                     type: string
                   clientSecretSecretRef:
@@ -87,10 +85,10 @@ spec:
                     - name
                     type: object
                   enabled:
-                    description: Offer this login. Default true.
+                    description: Default true.
                     type: boolean
                   groupsClaim:
-                    description: Claim with the user's groups. Default groups.
+                    description: Default groups.
                     type: string
                   issuerURL:
                     description: The IdP's issuer URL (for Keycloak, https://<host>/realms/<realm>).
@@ -108,7 +106,7 @@ spec:
                     minLength: 1
                     type: string
                   pkce:
-                    description: Use PKCE in the login's code exchange. Default true.
+                    description: Default true.
                     type: boolean
                   redirectURI:
                     description: |-
@@ -121,7 +119,7 @@ spec:
                       type: string
                     type: array
                   usernameClaim:
-                    description: Claim with the user name. Default preferred_username.
+                    description: Default preferred_username.
                     type: string
                 required:
                 - clientID
@@ -188,7 +186,6 @@ spec:
             - forProvider
             type: object
           status:
-            description: OIDCProviderStatus represents the observed state of an OIDCProvider.
             properties:
               atProvider:
                 description: |-

@@ -17,19 +17,16 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
-// Connection Secret keys of a Token.
 const (
 	KeyToken    = "token"
 	KeyUsername = "username"
 )
 
-// tokenClient manages a Token. Artifact Keeper shows a token's value only
-// when it is made, so a token is never adopted, nor changed in place: a
-// token whose scopes or repositories differ, or that expired, reads as
-// missing, and Create replaces it in the same reconcile (it makes the new
-// one, revokes the old one, and the new one is published in the connection
-// Secret). Revoking in Update instead would leave the Secret with a revoked
-// token until the next poll, minutes later.
+// Artifact Keeper shows a token's value only when it is made, so a token is
+// never adopted, nor changed in place: a token whose scopes or repositories
+// differ, or that expired, reads as missing, and Create replaces it in the
+// same reconcile (it makes the new one, revokes the old one, and the new one
+// is published in the connection Secret).
 type tokenClient struct {
 	kube client.Client
 	ak   *ak.Client
@@ -82,14 +79,10 @@ func (e *tokenClient) Observe(ctx context.Context, mg resource.Managed) (managed
 		return managed.ExternalObservation{}, err
 	}
 	id := serverID(cr)
-	// The account's ID: from the ServiceAccount object, except while being
-	// deleted with an ID recorded in status (the object may be gone already,
-	// deleted together with its tokens).
 	saID := cr.Status.AtProvider.ServiceAccountID
 	if saID == "" || !meta.WasDeleted(cr) {
 		if saID, _, err = serviceAccount(ctx, e.kube, cr.GetNamespace(), cr.Spec.ForProvider.ServiceAccountRef); err != nil {
 			if meta.WasDeleted(cr) {
-				// The account is gone, and its tokens with it.
 				return managed.ExternalObservation{ResourceExists: false}, nil
 			}
 			return managed.ExternalObservation{}, err
@@ -114,7 +107,6 @@ func (e *tokenClient) Observe(ctx context.Context, mg resource.Managed) (managed
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
-	// Name and expiresInDays are not compared: they apply to the next token.
 	if have.IsExpired || !sameSet(have.Scopes, cr.Spec.ForProvider.Scopes) || !sameSet(have.RepositoryIDs, repos) {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
@@ -132,8 +124,6 @@ func (e *tokenClient) Create(ctx context.Context, mg resource.Managed) (managed.
 		return managed.ExternalCreation{}, err
 	}
 	if username == "" {
-		// The ServiceAccount object was created moments ago and not yet
-		// observed: its user name comes from Artifact Keeper.
 		sa, err := e.ak.GetServiceAccount(ctx, saID)
 		if err != nil {
 			return managed.ExternalCreation{}, errors.Wrap(err, "cannot get the service account's user name")
@@ -172,8 +162,6 @@ func (e *tokenClient) Create(ctx context.Context, mg resource.Managed) (managed.
 	}}, nil
 }
 
-// Update has nothing to do: a token is never changed in place (an
-// out-of-date one reads as missing, and Create replaces it).
 func (e *tokenClient) Update(_ context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
 	_, err := asToken(mg)
 	return managed.ExternalUpdate{}, err
@@ -185,7 +173,6 @@ func (e *tokenClient) Delete(ctx context.Context, mg resource.Managed) (managed.
 		return managed.ExternalDelete{}, err
 	}
 	cr.SetConditions(xpv2.Deleting())
-	// Without both IDs the token was never observed: nothing to revoke.
 	if id := serverID(cr); id != "" && cr.Status.AtProvider.ServiceAccountID != "" {
 		if err := e.ak.RevokeToken(ctx, cr.Status.AtProvider.ServiceAccountID, id); err != nil && !ak.IsNotFound(err) {
 			return managed.ExternalDelete{}, errors.Wrap(err, "cannot revoke token")

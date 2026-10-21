@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Vincent Brobald
 // SPDX-License-Identifier: MPL-2.0
 
-// Package apis holds the provider's API groups.
 package apis
 
 import (
@@ -11,7 +10,6 @@ import (
 	"brobald.be/provider-artifact-keeper/apis/v1beta1"
 )
 
-// AddToScheme adds every kind of the provider to a scheme.
 func AddToScheme(s *runtime.Scheme) error {
 	if err := v1beta1.AddToScheme(s); err != nil {
 		return err

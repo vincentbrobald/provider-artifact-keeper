@@ -1,9 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Vincent Brobald
 // SPDX-License-Identifier: MPL-2.0
 
-// Package controller holds the provider's controllers: one managed
-// reconciler per kind (crossplane-runtime), each with an external client
-// that calls Artifact Keeper's API, and the ProviderConfig reconcilers.
 package controller
 
 import (
@@ -26,7 +23,6 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
-// kind is one managed resource kind and how its external client is made.
 type kind struct {
 	gvk  schema.GroupVersionKind
 	obj  client.Object
@@ -35,8 +31,6 @@ type kind struct {
 	// the external name defaults to the object's name (a repository's key).
 	serverID bool
 }
-
-// kinds lists the managed resource kinds.
 
 func kinds() []kind {
 	return []kind{
@@ -50,8 +44,6 @@ func kinds() []kind {
 	}
 }
 
-// Setup sets up every controller at once, without waiting for CRDs (when
-// the provider may not watch them: no safe-start).
 func Setup(mgr ctrl.Manager, o xpcontroller.Options) error {
 	if err := setupProviderConfigs(mgr, o); err != nil {
 		return err
@@ -138,8 +130,6 @@ func setupProviderConfigs(mgr ctrl.Manager, o xpcontroller.Options) error {
 	return nil
 }
 
-// connector makes a kind's external client with the resource's provider
-// config.
 type connector struct {
 	kube client.Client
 	make func(kube client.Client, c *ak.Client) managed.ExternalClient

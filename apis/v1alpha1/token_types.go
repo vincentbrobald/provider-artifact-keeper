@@ -55,20 +55,16 @@ type TokenObservation struct {
 	// The token's first characters, to recognise it.
 	Prefix string `json:"prefix,omitempty"`
 	// When the token expires; empty if it doesn't.
-	ExpiresAt string `json:"expiresAt,omitempty"`
-	// The IDs of the repositories it is restricted to.
+	ExpiresAt     string   `json:"expiresAt,omitempty"`
 	RepositoryIDs []string `json:"repositoryIds,omitempty"`
-	// Its scopes.
-	Scopes []string `json:"scopes,omitempty"`
+	Scopes        []string `json:"scopes,omitempty"`
 }
 
-// TokenSpec defines the desired state of a Token.
 type TokenSpec struct {
 	xpv2.ManagedResourceSpec `json:",inline"`
 	ForProvider              TokenParameters `json:"forProvider"`
 }
 
-// TokenStatus represents the observed state of a Token.
 type TokenStatus struct {
 	xpv2.ManagedResourceStatus `json:",inline"`
 	AtProvider                 TokenObservation `json:"atProvider,omitempty"`
@@ -83,7 +79,6 @@ type TokenStatus struct {
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:resource:scope=Namespaced,categories={crossplane,managed,artifactkeeper}
 
-// A Token is an API token of a ServiceAccount.
 type Token struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -94,7 +89,6 @@ type Token struct {
 
 // +kubebuilder:object:root=true
 
-// TokenList contains a list of Token.
 type TokenList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

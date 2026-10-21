@@ -22,10 +22,6 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
-// oidcClient manages an OIDCProvider: the external name is its ID; without
-// one, the provider of the same name is adopted. The client secret can't be
-// read back: its SHA-256 (status.atProvider.clientSecretHash) tells whether
-// the Secret changed since it was last sent.
 type oidcClient struct {
 	kube client.Client
 	ak   *ak.Client
@@ -39,7 +35,6 @@ func asOIDC(mg resource.Managed) (*v1alpha1.OIDCProvider, error) {
 	return cr, nil
 }
 
-// secret reads the client secret from the referenced Secret's key.
 func (e *oidcClient) secret(ctx context.Context, cr *v1alpha1.OIDCProvider) (string, error) {
 	ref := cr.Spec.ForProvider.ClientSecretSecretRef
 	s := &corev1.Secret{}
@@ -53,13 +48,11 @@ func (e *oidcClient) secret(ctx context.Context, cr *v1alpha1.OIDCProvider) (str
 	return strings.TrimSpace(string(v)), nil
 }
 
-// hash is the SHA-256 of s, hex-encoded.
 func hash(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])
 }
 
-// request returns the desired configuration, defaults applied.
 func request(cr *v1alpha1.OIDCProvider, secret string) ak.OIDCProviderRequest {
 	p := cr.Spec.ForProvider
 	scopes := p.Scopes
@@ -85,7 +78,6 @@ func request(cr *v1alpha1.OIDCProvider, secret string) ak.OIDCProviderRequest {
 	}
 }
 
-// orDefault returns v, or def when v is empty.
 func orDefault(v, def string) string {
 	if v == "" {
 		return def
@@ -93,9 +85,6 @@ func orDefault(v, def string) string {
 	return v
 }
 
-// oidcUpToDate compares what Artifact Keeper reports with the request: the
-// attribute mapping must hold exactly the keys the request sets, with the
-// same values. The secret only has to exist (see Observe).
 func oidcUpToDate(have *ak.OIDCProvider, want ak.OIDCProviderRequest) bool {
 	if have.Name != want.Name || have.IssuerURL != want.IssuerURL || have.ClientID != want.ClientID ||
 		!sameSet(have.Scopes, want.Scopes) || have.IsEnabled != want.IsEnabled || have.AutoCreateUsers != want.AutoCreateUsers ||

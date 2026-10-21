@@ -119,7 +119,6 @@ spec:
             - credentials
             type: object
           status:
-            description: ProviderConfigStatus is the status of a ProviderConfig.
             properties:
               conditions:
                 description: Conditions of the resource.

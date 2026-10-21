@@ -13,7 +13,6 @@ import (
 	"testing"
 )
 
-// recorder answers every request with reply and records what it got.
 type recorder struct {
 	method, path, query string
 	body                map[string]any
@@ -42,8 +41,6 @@ func (rec *recorder) server(t *testing.T) *Client {
 	return New(srv.URL+"/", "tok", srv.Client())
 }
 
-// TestCalls checks each call's method, path and body: what the server's API
-// expects.
 func TestCalls(t *testing.T) {
 	ctx := context.Background()
 	q := int64(5)
@@ -123,8 +120,6 @@ func jsonEqual(a, b any) bool {
 	return string(x) == string(y)
 }
 
-// The update replaces the attribute mapping as a whole, so that keys no
-// longer set go away.
 func TestUpdateOIDCProviderReplacesMapping(t *testing.T) {
 	rec := &recorder{}
 	c := rec.server(t)

@@ -17,9 +17,6 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
-// permissionClient manages a Permission: the external name is the
-// permission's ID; without one, the permission of the same principal on
-// the same repository is adopted (Artifact Keeper allows one).
 type permissionClient struct {
 	kube client.Client
 	ak   *ak.Client
@@ -33,8 +30,6 @@ func asPermission(mg resource.Managed) (*v1alpha1.Permission, error) {
 	return cr, nil
 }
 
-// desired returns the permission as Artifact Keeper stores it (IDs
-// resolved).
 func (e *permissionClient) desired(ctx context.Context, cr *v1alpha1.Permission) (ak.Permission, error) {
 	p := cr.Spec.ForProvider
 	out := ak.Permission{TargetType: "repository", Actions: p.Actions}
@@ -79,8 +74,6 @@ func (e *permissionClient) Observe(ctx context.Context, mg resource.Managed) (ma
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
-	// Being deleted: only whether it still exists (its group or repository
-	// may be gone already, which mustn't block the deletion).
 	if meta.WasDeleted(cr) {
 		id := serverID(cr)
 		if id == "" {

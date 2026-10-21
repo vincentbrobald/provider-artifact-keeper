@@ -24,7 +24,6 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
-// fakeAK is an in-memory Artifact Keeper: the endpoints the controllers use.
 type fakeAK struct {
 	mu      sync.Mutex
 	repos   map[string]map[string]any // key -> repository

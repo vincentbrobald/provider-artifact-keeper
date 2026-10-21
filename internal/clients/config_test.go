@@ -59,8 +59,6 @@ func TestConnect(t *testing.T) {
 	ctx := context.Background()
 	cpc := &v1beta1.ClusterProviderConfig{ObjectMeta: metav1.ObjectMeta{Name: "default"},
 		Spec: secretSource("crossplane-system", "ak", "credentials")}
-	// The team's ProviderConfig names a Secret of another namespace: it must
-	// be read from the team's own.
 	pc := &v1beta1.ProviderConfig{ObjectMeta: metav1.ObjectMeta{Namespace: "team", Name: "own"},
 		Spec: secretSource("crossplane-system", "ak", "missing-key")}
 	k := kube(t, cpc, pc,

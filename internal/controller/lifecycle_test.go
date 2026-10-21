@@ -18,7 +18,6 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
-// deleting marks an object as being deleted.
 func deleting(o metav1.Object) {
 	now := metav1.Now()
 	o.SetDeletionTimestamp(&now)
@@ -49,7 +48,6 @@ func TestOIDCProviderLifecycle(t *testing.T) {
 		t.Fatalf("after creation: %+v, %v", obs, err)
 	}
 
-	// A new value in the Secret shows only through its hash.
 	s.Data["secret"] = []byte("two")
 	if err := kube.Update(ctx, s); err != nil {
 		t.Fatal(err)
@@ -64,7 +62,6 @@ func TestOIDCProviderLifecycle(t *testing.T) {
 		t.Fatal("the new secret must be sent and recorded")
 	}
 
-	// Another object of the same name adopts it (and must be saved).
 	twin := cr.DeepCopy()
 	meta.SetExternalName(twin, "")
 	twin.Status.AtProvider = v1alpha1.OIDCProviderObservation{}
@@ -177,7 +174,6 @@ func TestPermissionPrincipalsAndDeletion(t *testing.T) {
 			if obs, err := e.Observe(ctx, cr); err != nil || !obs.ResourceUpToDate || obs.ResourceLateInitialized {
 				t.Fatalf("after creation: %+v, %v", obs, err)
 			}
-			// Being deleted, only existence counts (the principal may be gone).
 			delete(f.users, "alice")
 			deleting(cr)
 			if obs, err := e.Observe(ctx, cr); err != nil || !obs.ResourceExists {
@@ -254,7 +250,6 @@ func TestVirtualRepository(t *testing.T) {
 		t.Fatal("order restored")
 	}
 
-	// The quota is compared only when set.
 	f.repos["a-npm-all"]["quota_bytes"] = 1000
 	if obs, _ := e.Observe(ctx, cr); !obs.ResourceUpToDate {
 		t.Fatal("unset: the server's quota is left alone")
@@ -329,8 +324,6 @@ func TestTokenOfTheSameNameAndDeletion(t *testing.T) {
 		t.Fatal("an expired token reads as missing, so that Create replaces it")
 	}
 
-	// Deleted together with its account: the ID kept in status still finds
-	// the account's tokens, and they are gone.
 	if err := kube.Delete(ctx, sa); err != nil {
 		t.Fatal(err)
 	}
@@ -352,8 +345,6 @@ func TestTokenOfTheSameNameAndDeletion(t *testing.T) {
 	}
 }
 
-// A Token made right after its ServiceAccount, not yet observed: the user
-// name comes from Artifact Keeper.
 func TestTokenUserNameOfANewAccount(t *testing.T) {
 	ctx := context.Background()
 	const saID = "22222222-2222-2222-2222-222222222222"
@@ -399,7 +390,6 @@ func TestTokenDeleteRevokes(t *testing.T) {
 	}
 }
 
-// Every client refuses another kind, and has nothing to disconnect.
 func TestClientsRefuseOtherKinds(t *testing.T) {
 	ctx := context.Background()
 	other := &v1alpha1.Token{}
@@ -461,7 +451,6 @@ func TestDefaults(t *testing.T) {
 	}
 }
 
-// The connector needs a provider config: without one, no client.
 func TestConnectorNeedsProviderConfig(t *testing.T) {
 	_, kube, _ := setup(t)
 	conn := &connector{kube: kube, make: kinds()[0].make}

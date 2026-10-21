@@ -37,7 +37,6 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A Token is an API token of a ServiceAccount.
         properties:
           apiVersion:
             description: |-
@@ -57,7 +56,6 @@ spec:
           metadata:
             type: object
           spec:
-            description: TokenSpec defines the desired state of a Token.
             properties:
               forProvider:
                 description: |-
@@ -181,7 +179,6 @@ spec:
             - forProvider
             type: object
           status:
-            description: TokenStatus represents the observed state of a Token.
             properties:
               atProvider:
                 description: |-
@@ -198,12 +195,10 @@ spec:
                     description: The token's first characters, to recognise it.
                     type: string
                   repositoryIds:
-                    description: The IDs of the repositories it is restricted to.
                     items:
                       type: string
                     type: array
                   scopes:
-                    description: Its scopes.
                     items:
                       type: string
                     type: array

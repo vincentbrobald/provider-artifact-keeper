@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Vincent Brobald
 // SPDX-License-Identifier: MPL-2.0
 
-// Package clients turns a managed resource's (Cluster)ProviderConfig into an
-// Artifact Keeper client.
 package clients
 
 import (
@@ -21,14 +19,11 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
-// Credentials are the provider's: the server and an API token.
 type Credentials struct {
 	URL   string `json:"url"`
 	Token string `json:"token"`
 }
 
-// Connect resolves the managed resource's provider config, records its use
-// and returns a client.
 func Connect(ctx context.Context, kube client.Client, mg resource.ModernManaged) (*ak.Client, error) {
 	spec, err := resolve(ctx, kube, mg)
 	if err != nil {
@@ -63,9 +58,6 @@ func resolve(ctx context.Context, kube client.Client, mg resource.ModernManaged)
 			return nil, errors.Wrap(err, "cannot get ProviderConfig")
 		}
 		spec = pc.Spec
-		// A namespaced ProviderConfig's Secret is always read from its own
-		// namespace, whatever the reference says: a team's ProviderConfig
-		// can't point at another namespace's credentials.
 		if spec.Credentials.SecretRef != nil {
 			spec.Credentials.SecretRef.Namespace = mg.GetNamespace()
 		}
@@ -79,9 +71,6 @@ func resolve(ctx context.Context, kube client.Client, mg resource.ModernManaged)
 	return &spec, nil
 }
 
-// credentials reads the credentials: JSON under the selected key or, when
-// the Secret has no such key, its flat keys url and token. Sources other than
-// a Secret go through Crossplane's extractor (JSON).
 func credentials(ctx context.Context, kube client.Client, spec *v1beta1.ProviderConfigSpec) (Credentials, error) {
 	var c Credentials
 	sel := spec.Credentials.CommonCredentialSelectors

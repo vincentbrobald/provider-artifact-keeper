@@ -49,7 +49,6 @@ func TestSetup(t *testing.T) {
 	}
 }
 
-// With safe-start, each kind's controller is set up when its CRD appears.
 func TestSetupGated(t *testing.T) {
 	o := options()
 	g := new(gate.Gate[schema.GroupVersionKind])
