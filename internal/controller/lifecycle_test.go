@@ -497,3 +497,48 @@ func TestConnectorNeedsProviderConfig(t *testing.T) {
 		t.Fatalf("a client from the ClusterProviderConfig: %v", err)
 	}
 }
+
+// A Token deleted before any Observe is still revoked: Create records the
+// account's ID, and without one Delete asks the ServiceAccount object.
+func TestTokenDeletedBeforeObserve(t *testing.T) {
+	ctx := context.Background()
+	const saID = "22222222-2222-2222-2222-222222222222"
+	sa := &v1alpha1.ServiceAccount{ObjectMeta: om("ci")}
+	meta.SetExternalName(sa, saID)
+	sa.Status.AtProvider.Username = "svc-a-ci"
+	f, kube, c := setup(t, sa)
+	e := &tokenClient{kube: kube, ak: c}
+	cr := &v1alpha1.Token{ObjectMeta: om("ci"), Spec: v1alpha1.TokenSpec{ForProvider: v1alpha1.TokenParameters{
+		ServiceAccountRef: v1alpha1.LocalReference{Name: "ci"}, Name: "ci", Scopes: []string{"read:artifacts"}}}}
+
+	if _, err := e.Create(ctx, cr); err != nil {
+		t.Fatal(err)
+	}
+	if cr.Status.AtProvider.ServiceAccountID != saID {
+		t.Fatalf("Create records the account: %q", cr.Status.AtProvider.ServiceAccountID)
+	}
+	if _, err := e.Delete(ctx, cr); err != nil || len(f.tokens[saID]) != 0 {
+		t.Fatalf("revoked without an Observe: %+v, %v", f.tokens[saID], err)
+	}
+
+	// Made by an older version: no account ID in status.
+	if _, err := e.Create(ctx, cr); err != nil {
+		t.Fatal(err)
+	}
+	cr.Status.AtProvider.ServiceAccountID = ""
+	if _, err := e.Delete(ctx, cr); err != nil || len(f.tokens[saID]) != 0 {
+		t.Fatalf("revoked through the ServiceAccount object: %+v, %v", f.tokens[saID], err)
+	}
+
+	// The account object gone too: nothing to revoke, no error.
+	if _, err := e.Create(ctx, cr); err != nil {
+		t.Fatal(err)
+	}
+	cr.Status.AtProvider.ServiceAccountID = ""
+	if err := kube.Delete(ctx, sa); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.Delete(ctx, cr); err != nil {
+		t.Fatalf("no account left: %v", err)
+	}
+}

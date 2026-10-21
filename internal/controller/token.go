@@ -163,6 +163,9 @@ func (e *tokenClient) Create(ctx context.Context, mg resource.Managed) (managed.
 		return managed.ExternalCreation{}, errors.Wrap(err, "cannot create token")
 	}
 	meta.SetExternalName(cr, t.ID)
+	// Recorded now, not only at the next Observe: Delete needs the account's
+	// ID to revoke the token, also when it runs before any Observe.
+	cr.Status.AtProvider.ID, cr.Status.AtProvider.ServiceAccountID = t.ID, saID
 	// Then the token it replaces (ours, out of date) and any other of this
 	// name (Artifact Keeper allows several; their values are lost) are
 	// revoked: the old token works until the new one exists.
@@ -190,19 +193,31 @@ func (e *tokenClient) Update(_ context.Context, mg resource.Managed) (managed.Ex
 	return managed.ExternalUpdate{}, err
 }
 
-// Delete revokes the token. It needs the account's ID recorded by Observe:
-// without it, or without a token ID, there is nothing to revoke. A token
-// already gone is no error.
+// Delete revokes the token, with the account's ID recorded in status by
+// Create or Observe, else that of the ServiceAccount object. Without a token
+// ID, or with the account gone, there is nothing to revoke; a token already
+// gone is no error.
 func (e *tokenClient) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
 	cr, err := asToken(mg)
 	if err != nil {
 		return managed.ExternalDelete{}, err
 	}
 	cr.SetConditions(xpv2.Deleting())
-	if id := serverID(cr); id != "" && cr.Status.AtProvider.ServiceAccountID != "" {
-		if err := e.ak.RevokeToken(ctx, cr.Status.AtProvider.ServiceAccountID, id); err != nil && !ak.IsNotFound(err) {
-			return managed.ExternalDelete{}, errors.Wrap(err, "cannot revoke token")
+	id := serverID(cr)
+	if id == "" {
+		return managed.ExternalDelete{}, nil // never created
+	}
+	saID := cr.Status.AtProvider.ServiceAccountID
+	if saID == "" {
+		// No ID recorded (a token made by an older version and never
+		// observed): ask the ServiceAccount object. If it is gone, so is the
+		// account and its tokens with it.
+		if saID, _, err = serviceAccount(ctx, e.kube, cr.GetNamespace(), cr.Spec.ForProvider.ServiceAccountRef); err != nil {
+			return managed.ExternalDelete{}, nil //nolint:nilerr // nothing left to revoke
 		}
+	}
+	if err := e.ak.RevokeToken(ctx, saID, id); err != nil && !ak.IsNotFound(err) {
+		return managed.ExternalDelete{}, errors.Wrap(err, "cannot revoke token")
 	}
 	return managed.ExternalDelete{}, nil
 }
