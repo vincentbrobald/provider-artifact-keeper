@@ -38,17 +38,22 @@ func manager(t *testing.T) ctrl.Manager {
 	return mgr
 }
 
+// options returns controller options for tests: no logging, one reconcile at
+// a time, no safe-start gate.
 func options() xpcontroller.Options {
 	return xpcontroller.Options{Logger: logging.NewNopLogger(), GlobalRateLimiter: ratelimiter.NewGlobal(1),
 		MaxConcurrentReconciles: 1, Features: &feature.Flags{}}
 }
 
+// TestSetup checks that every controller can be set up at once.
 func TestSetup(t *testing.T) {
 	if err := Setup(manager(t), options()); err != nil {
 		t.Fatal(err)
 	}
 }
 
+// TestSetupGated checks that the gated setup registers without error and
+// that opening every gate sets the controllers up without a panic.
 func TestSetupGated(t *testing.T) {
 	o := options()
 	g := new(gate.Gate[schema.GroupVersionKind])

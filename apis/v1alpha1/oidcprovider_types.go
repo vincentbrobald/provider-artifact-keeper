@@ -8,8 +8,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// The external name is its ID; without one, the provider of the same name
-// is adopted.
+// OIDCProviderParameters are the settings of an OIDC login. The external name
+// is the provider's ID; without one, the provider of the same name is adopted.
 type OIDCProviderParameters struct {
 	// The name shown on the login page; also how an existing provider is
 	// found.
@@ -20,6 +20,7 @@ type OIDCProviderParameters struct {
 	// +kubebuilder:validation:MinLength=1
 	IssuerURL string `json:"issuerURL"`
 
+	// The client's ID at the IdP.
 	// +kubebuilder:validation:MinLength=1
 	ClientID string `json:"clientID"`
 
@@ -27,7 +28,7 @@ type OIDCProviderParameters struct {
 	// the Secret is noticed by its hash, status.atProvider.clientSecretHash).
 	ClientSecretSecretRef SecretKeySelector `json:"clientSecretSecretRef"`
 
-	// Default openid, profile, email.
+	// The scopes requested from the IdP. Default openid, profile, email.
 	// +optional
 	Scopes []string `json:"scopes,omitempty"`
 
@@ -36,11 +37,11 @@ type OIDCProviderParameters struct {
 	// +optional
 	RedirectURI string `json:"redirectURI,omitempty"`
 
-	// Default groups.
+	// The claim that holds the user's groups. Default groups.
 	// +optional
 	GroupsClaim string `json:"groupsClaim,omitempty"`
 
-	// Default preferred_username.
+	// The claim that holds the user name. Default preferred_username.
 	// +optional
 	UsernameClaim string `json:"usernameClaim,omitempty"`
 
@@ -57,11 +58,11 @@ type OIDCProviderParameters struct {
 	// +optional
 	AutoCreateUsers *bool `json:"autoCreateUsers,omitempty"`
 
-	// Default true.
+	// Use PKCE in the login flow. Default true.
 	// +optional
 	PKCE *bool `json:"pkce,omitempty"`
 
-	// Default true.
+	// Whether the login is enabled. Default true.
 	// +optional
 	Enabled *bool `json:"enabled,omitempty"`
 }
@@ -75,11 +76,13 @@ type OIDCProviderObservation struct {
 	ClientSecretHash string `json:"clientSecretHash,omitempty"`
 }
 
+// OIDCProviderSpec is the desired state of an OIDCProvider.
 type OIDCProviderSpec struct {
 	xpv2.ManagedResourceSpec `json:",inline"`
 	ForProvider              OIDCProviderParameters `json:"forProvider"`
 }
 
+// OIDCProviderStatus is the observed state of an OIDCProvider.
 type OIDCProviderStatus struct {
 	xpv2.ManagedResourceStatus `json:",inline"`
 	AtProvider                 OIDCProviderObservation `json:"atProvider,omitempty"`
@@ -105,6 +108,7 @@ type OIDCProvider struct {
 
 // +kubebuilder:object:root=true
 
+// OIDCProviderList is a list of OIDCProviders.
 type OIDCProviderList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

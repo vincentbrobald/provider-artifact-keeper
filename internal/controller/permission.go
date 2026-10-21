@@ -17,11 +17,14 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
+// permissionClient is the external client of Permission objects. The
+// external name is the permission's ID.
 type permissionClient struct {
 	kube client.Client
 	ak   *ak.Client
 }
 
+// asPermission returns mg as a Permission, or an error if it is another kind.
 func asPermission(mg resource.Managed) (*v1alpha1.Permission, error) {
 	cr, ok := mg.(*v1alpha1.Permission)
 	if !ok {
@@ -30,6 +33,9 @@ func asPermission(mg resource.Managed) (*v1alpha1.Permission, error) {
 	return cr, nil
 }
 
+// desired returns the permission cr asks for, with the IDs of its repository
+// and principal looked up. It fails if either doesn't exist (yet), e.g. a
+// group mirrored from the OIDC login before its first member signed in.
 func (e *permissionClient) desired(ctx context.Context, cr *v1alpha1.Permission) (ak.Permission, error) {
 	p := cr.Spec.ForProvider
 	out := ak.Permission{TargetType: "repository", Actions: p.Actions}
@@ -69,6 +75,11 @@ func (e *permissionClient) desired(ctx context.Context, cr *v1alpha1.Permission)
 	return out, nil
 }
 
+// Observe reads the permission by ID or, without one, finds the principal's
+// permission on the repository and adopts it. It is up to date when
+// principal, repository and actions (in any order) match the spec. While cr
+// is being deleted, only existence is checked, so that a deletion doesn't
+// wait for principal or repository.
 func (e *permissionClient) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
 	cr, err := asPermission(mg)
 	if err != nil {
@@ -120,6 +131,7 @@ func (e *permissionClient) Observe(ctx context.Context, mg resource.Managed) (ma
 	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: upToDate, ResourceLateInitialized: adopted}, nil
 }
 
+// Create grants the permission and records its ID as the external name.
 func (e *permissionClient) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
 	cr, err := asPermission(mg)
 	if err != nil {
@@ -137,6 +149,7 @@ func (e *permissionClient) Create(ctx context.Context, mg resource.Managed) (man
 	return managed.ExternalCreation{}, nil
 }
 
+// Update replaces the permission with the one cr asks for.
 func (e *permissionClient) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
 	cr, err := asPermission(mg)
 	if err != nil {
@@ -149,6 +162,8 @@ func (e *permissionClient) Update(ctx context.Context, mg resource.Managed) (man
 	return managed.ExternalUpdate{}, errors.Wrap(e.ak.UpdatePermission(ctx, serverID(cr), want), "cannot update permission")
 }
 
+// Delete deletes the permission; without an ID, or if it is already gone,
+// there is nothing to do.
 func (e *permissionClient) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
 	cr, err := asPermission(mg)
 	if err != nil {
@@ -165,4 +180,5 @@ func (e *permissionClient) Delete(ctx context.Context, mg resource.Managed) (man
 	return managed.ExternalDelete{}, nil
 }
 
+// Disconnect does nothing: the client holds no connection.
 func (e *permissionClient) Disconnect(context.Context) error { return nil }

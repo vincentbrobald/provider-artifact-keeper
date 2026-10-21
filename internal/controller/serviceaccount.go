@@ -17,11 +17,15 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
+// serviceAccountClient is the external client of ServiceAccount objects. The
+// external name is the account's ID.
 type serviceAccountClient struct {
 	kube client.Client
 	ak   *ak.Client
 }
 
+// asServiceAccount returns mg as a ServiceAccount, or an error if it is
+// another kind.
 func asServiceAccount(mg resource.Managed) (*v1alpha1.ServiceAccount, error) {
 	cr, ok := mg.(*v1alpha1.ServiceAccount)
 	if !ok {
@@ -30,6 +34,10 @@ func asServiceAccount(mg resource.Managed) (*v1alpha1.ServiceAccount, error) {
 	return cr, nil
 }
 
+// Observe reads the account by ID or, without one, finds svc-<name> and
+// adopts it, and records its ID and user name. Only the active flag is
+// compared (the description is set at creation only); while cr is being
+// deleted it reads as up to date.
 func (e *serviceAccountClient) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
 	cr, err := asServiceAccount(mg)
 	if err != nil {
@@ -63,6 +71,7 @@ func (e *serviceAccountClient) Observe(ctx context.Context, mg resource.Managed)
 	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: upToDate || meta.WasDeleted(cr), ResourceLateInitialized: adopted}, nil
 }
 
+// Create creates svc-<name> and records its ID as the external name.
 func (e *serviceAccountClient) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
 	cr, err := asServiceAccount(mg)
 	if err != nil {
@@ -76,6 +85,7 @@ func (e *serviceAccountClient) Create(ctx context.Context, mg resource.Managed) 
 	return managed.ExternalCreation{}, nil
 }
 
+// Update sets the active flag; the display name is left as it is.
 func (e *serviceAccountClient) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
 	cr, err := asServiceAccount(mg)
 	if err != nil {
@@ -85,6 +95,8 @@ func (e *serviceAccountClient) Update(ctx context.Context, mg resource.Managed) 
 	return managed.ExternalUpdate{}, errors.Wrap(e.ak.UpdateServiceAccount(ctx, serverID(cr), nil, &active), "cannot update service account")
 }
 
+// Delete deletes the account; without an ID, or if it is already gone, there
+// is nothing to do.
 func (e *serviceAccountClient) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
 	cr, err := asServiceAccount(mg)
 	if err != nil {
@@ -99,4 +111,5 @@ func (e *serviceAccountClient) Delete(ctx context.Context, mg resource.Managed) 
 	return managed.ExternalDelete{}, nil
 }
 
+// Disconnect does nothing: the client holds no connection.
 func (e *serviceAccountClient) Disconnect(context.Context) error { return nil }

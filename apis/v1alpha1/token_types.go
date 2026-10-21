@@ -55,16 +55,21 @@ type TokenObservation struct {
 	// The token's first characters, to recognise it.
 	Prefix string `json:"prefix,omitempty"`
 	// When the token expires; empty if it doesn't.
-	ExpiresAt     string   `json:"expiresAt,omitempty"`
+	ExpiresAt string `json:"expiresAt,omitempty"`
+	// The IDs of the repositories the token is restricted to; empty if it
+	// isn't.
 	RepositoryIDs []string `json:"repositoryIds,omitempty"`
-	Scopes        []string `json:"scopes,omitempty"`
+	// The token's scopes.
+	Scopes []string `json:"scopes,omitempty"`
 }
 
+// TokenSpec is the desired state of a Token.
 type TokenSpec struct {
 	xpv2.ManagedResourceSpec `json:",inline"`
 	ForProvider              TokenParameters `json:"forProvider"`
 }
 
+// TokenStatus is the observed state of a Token.
 type TokenStatus struct {
 	xpv2.ManagedResourceStatus `json:",inline"`
 	AtProvider                 TokenObservation `json:"atProvider,omitempty"`
@@ -79,6 +84,8 @@ type TokenStatus struct {
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:resource:scope=Namespaced,categories={crossplane,managed,artifactkeeper}
 
+// A Token is an API token of an Artifact Keeper service account, published in
+// the connection Secret.
 type Token struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -89,6 +96,7 @@ type Token struct {
 
 // +kubebuilder:object:root=true
 
+// TokenList is a list of Tokens.
 type TokenList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

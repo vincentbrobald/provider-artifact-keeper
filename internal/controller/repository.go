@@ -17,11 +17,14 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
+// repositoryClient is the external client of Repository objects. The
+// external name is the repository's key.
 type repositoryClient struct {
 	kube client.Client
 	ak   *ak.Client
 }
 
+// asRepository returns mg as a Repository, or an error if it is another kind.
 func asRepository(mg resource.Managed) (*v1alpha1.Repository, error) {
 	cr, ok := mg.(*v1alpha1.Repository)
 	if !ok {
@@ -30,6 +33,8 @@ func asRepository(mg resource.Managed) (*v1alpha1.Repository, error) {
 	return cr, nil
 }
 
+// desiredMembers returns the keys of cr's members, in priority order. It
+// fails if a referenced Repository is missing or has no key yet.
 func (e *repositoryClient) desiredMembers(ctx context.Context, cr *v1alpha1.Repository) ([]string, error) {
 	keys := make([]string, 0, len(cr.Spec.ForProvider.Members))
 	for _, m := range cr.Spec.ForProvider.Members {
@@ -42,6 +47,7 @@ func (e *repositoryClient) desiredMembers(ctx context.Context, cr *v1alpha1.Repo
 	return keys, nil
 }
 
+// displayName returns the repository's display name: spec name, or the key.
 func displayName(cr *v1alpha1.Repository) string {
 	if cr.Spec.ForProvider.Name != "" {
 		return cr.Spec.ForProvider.Name
@@ -49,6 +55,11 @@ func displayName(cr *v1alpha1.Repository) string {
 	return meta.GetExternalName(cr)
 }
 
+// Observe reads the repository by key and compares it with the spec: name,
+// description, public access, the quota when one is set and, for a virtual
+// repository, the members in order. A format or type other than the spec's is
+// an error, since neither can change. Nothing is compared while cr is being
+// deleted.
 func (e *repositoryClient) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
 	cr, err := asRepository(mg)
 	if err != nil {
@@ -96,6 +107,7 @@ func (e *repositoryClient) Observe(ctx context.Context, mg resource.Managed) (ma
 	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: upToDate}, nil
 }
 
+// Create creates the repository, then sets the members of a virtual one.
 func (e *repositoryClient) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
 	cr, err := asRepository(mg)
 	if err != nil {
@@ -112,6 +124,8 @@ func (e *repositoryClient) Create(ctx context.Context, mg resource.Managed) (man
 	return managed.ExternalCreation{}, e.setMembers(ctx, cr)
 }
 
+// setMembers replaces the members of a virtual repository with the spec's,
+// priorities 1, 2, ... in spec order; for other types it does nothing.
 func (e *repositoryClient) setMembers(ctx context.Context, cr *v1alpha1.Repository) error {
 	if cr.Spec.ForProvider.Type != "virtual" {
 		return nil
@@ -127,6 +141,8 @@ func (e *repositoryClient) setMembers(ctx context.Context, cr *v1alpha1.Reposito
 	return errors.Wrap(e.ak.SetMembers(ctx, meta.GetExternalName(cr), m), "cannot set members")
 }
 
+// Update sends the spec's name, description, public access and quota (left
+// as it is when unset), then sets the members of a virtual repository.
 func (e *repositoryClient) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
 	cr, err := asRepository(mg)
 	if err != nil {
@@ -149,6 +165,8 @@ func (e *repositoryClient) Update(ctx context.Context, mg resource.Managed) (man
 	return managed.ExternalUpdate{}, e.setMembers(ctx, cr)
 }
 
+// Delete deletes the repository and its packages; one already gone is no
+// error.
 func (e *repositoryClient) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
 	cr, err := asRepository(mg)
 	if err != nil {
@@ -161,8 +179,11 @@ func (e *repositoryClient) Delete(ctx context.Context, mg resource.Managed) (man
 	return managed.ExternalDelete{}, nil
 }
 
+// Disconnect does nothing: the client holds no connection.
 func (e *repositoryClient) Disconnect(context.Context) error { return nil }
 
+// equalOrdered reports whether a and b hold the same strings in the same
+// order.
 func equalOrdered(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

@@ -119,6 +119,9 @@ spec:
             - credentials
             type: object
           status:
+            description: |-
+              ProviderConfigStatus is the observed state of a provider config: its
+              conditions and how many managed resources use it.
             properties:
               conditions:
                 description: Conditions of the resource.

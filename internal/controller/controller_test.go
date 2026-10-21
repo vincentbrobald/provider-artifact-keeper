@@ -24,20 +24,24 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
+// fakeAK is an in-memory Artifact Keeper serving the calls the controllers
+// make, enough for their tests; tests also change its maps directly to
+// simulate changes made outside the provider.
 type fakeAK struct {
 	mu      sync.Mutex
-	repos   map[string]map[string]any // key -> repository
-	members map[string][]ak.Member    // virtual repository key -> members
-	groups  map[string]string         // name -> id
-	users   map[string]string         // name -> id
-	perms   map[string]ak.Permission  // id -> permission
-	sas     map[string]ak.ServiceAccount
-	tokens  map[string][]ak.Token     // service account id -> tokens
-	oidc    map[string]map[string]any // id -> provider (as returned)
-	secrets map[string]string         // OIDC provider id -> client secret
-	n       int
+	repos   map[string]map[string]any    // key -> repository
+	members map[string][]ak.Member       // virtual repository key -> members
+	groups  map[string]string            // name -> id
+	users   map[string]string            // name -> id
+	perms   map[string]ak.Permission     // id -> permission
+	sas     map[string]ak.ServiceAccount // id -> service account
+	tokens  map[string][]ak.Token        // service account id -> tokens
+	oidc    map[string]map[string]any    // id -> provider (as returned)
+	secrets map[string]string            // OIDC provider id -> client secret
+	n       int                          // the last ID handed out
 }
 
+// newFakeAK returns an empty fakeAK.
 func newFakeAK() *fakeAK {
 	return &fakeAK{repos: map[string]map[string]any{}, members: map[string][]ak.Member{}, groups: map[string]string{},
 		users: map[string]string{}, perms: map[string]ak.Permission{}, sas: map[string]ak.ServiceAccount{},
@@ -61,13 +65,21 @@ func (f *fakeAK) oidcFromRequest(id string, body map[string]any) map[string]any 
 	return p
 }
 
+// id returns a new UUID-shaped ID (00000000-0000-0000-0000-000000000001,
+// ...), so that serverID accepts it.
 func (f *fakeAK) id() string {
 	f.n++
 	return "00000000-0000-0000-0000-" + strings.Repeat("0", 12-len(itoa(f.n))) + itoa(f.n)
 }
 
+// itoa returns i in decimal.
 func itoa(i int) string { b, _ := json.Marshal(i); return string(b) }
 
+// ServeHTTP answers one API call from the fake's state, under its lock.
+// Paths are matched without /api/v1, by exact path or by segments. An
+// unknown ID answers 404, an unknown call 501. List answers come on a single
+// page; users and groups are searched by substring, permissions aren't
+// filtered (FindPermission picks the match).
 func (f *fakeAK) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -237,6 +249,9 @@ func (f *fakeAK) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// setup starts a fakeAK server, closed when the test ends, and returns it, a
+// fake Kubernetes client holding objs (with their status subresource) and
+// an Artifact Keeper client of the fake.
 func setup(t *testing.T, objs ...client.Object) (*fakeAK, client.Client, *ak.Client) {
 	t.Helper()
 	s := runtime.NewScheme()
@@ -253,8 +268,11 @@ func setup(t *testing.T, objs ...client.Object) (*fakeAK, client.Client, *ak.Cli
 	return f, kube, ak.New(srv.URL, "t", srv.Client())
 }
 
+// om returns the metadata of an object name in namespace team-a.
 func om(name string) metav1.ObjectMeta { return metav1.ObjectMeta{Name: name, Namespace: "team-a"} }
 
+// TestRepositoryLifecycle takes a local repository through creation, drift
+// and its correction, and checks that a type change is refused.
 func TestRepositoryLifecycle(t *testing.T) {
 	ctx := context.Background()
 	f, kube, c := setup(t)
@@ -288,6 +306,9 @@ func TestRepositoryLifecycle(t *testing.T) {
 	}
 }
 
+// TestPermissionWaitsForGroupThenAdopts checks that a permission for a
+// missing group is an error, and that once the group exists its existing
+// permission is adopted by ID and its actions updated.
 func TestPermissionWaitsForGroupThenAdopts(t *testing.T) {
 	ctx := context.Background()
 	repo := &v1alpha1.Repository{ObjectMeta: om("a-maven")}
@@ -302,6 +323,8 @@ func TestPermissionWaitsForGroupThenAdopts(t *testing.T) {
 		t.Fatalf("the group's absence must be an error that says so: %v", err)
 	}
 	f.groups["team-a"] = "g1"
+	// The fake's own IDs aren't used here: an existing permission with a
+	// UUID of its own, stored under that ID.
 	f.perms["p0"] = ak.Permission{ID: "11111111-1111-1111-1111-111111111111", PrincipalType: "group", PrincipalID: "g1", TargetType: "repository", TargetID: "r1", Actions: []string{"read"}}
 	f.perms["11111111-1111-1111-1111-111111111111"] = f.perms["p0"]
 	delete(f.perms, "p0")
@@ -320,6 +343,9 @@ func TestPermissionWaitsForGroupThenAdopts(t *testing.T) {
 	}
 }
 
+// TestTokenPublishedAndRotated checks that a new token and the user name are
+// published, and that a change of scopes makes Create replace the token and
+// revoke the old one.
 func TestTokenPublishedAndRotated(t *testing.T) {
 	ctx := context.Background()
 	sa := &v1alpha1.ServiceAccount{ObjectMeta: om("ci")}
@@ -361,6 +387,8 @@ func TestTokenPublishedAndRotated(t *testing.T) {
 	}
 }
 
+// TestOIDCUpToDate checks oidcUpToDate against defaults, scope order, the
+// admin group and a missing secret.
 func TestOIDCUpToDate(t *testing.T) {
 	cr := &v1alpha1.OIDCProvider{Spec: v1alpha1.OIDCProviderSpec{ForProvider: v1alpha1.OIDCProviderParameters{
 		Name: "keycloak", IssuerURL: "https://idp/realms/x", ClientID: "c", AdminGroup: "admins"}}}

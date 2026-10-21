@@ -34,6 +34,10 @@ spec:
     name: v1beta1
     schema:
       openAPIV3Schema:
+        description: |-
+          A ProviderConfigUsage records that a managed resource uses a ProviderConfig
+          or ClusterProviderConfig; a provider config isn't deleted while any record
+          its use.
         properties:
           apiVersion:
             description: |-

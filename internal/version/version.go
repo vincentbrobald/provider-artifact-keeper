@@ -5,4 +5,5 @@
 // (-ldflags -X .../internal/version.Version=...).
 package version
 
+// Version is the provider's version; "dev" when the build doesn't set it.
 var Version = "dev"

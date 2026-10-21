@@ -8,8 +8,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// Artifact Keeper allows one permission per principal and repository: the
-// external name is the permission's ID, and without one the permission of
+// PermissionParameters grant a principal actions on a repository. Artifact
+// Keeper allows one permission per principal and repository: the external
+// name is the permission's ID, and without one the permission of
 // the same principal on the same repository is adopted.
 // +kubebuilder:validation:XValidation:rule="has(self.repositoryRef) != has(self.repositoryKey)",message="exactly one of repositoryRef and repositoryKey"
 type PermissionParameters struct {
@@ -30,6 +31,7 @@ type PermissionParameters struct {
 	Actions []string `json:"actions"`
 }
 
+// PermissionPrincipal is who a permission is granted to.
 // +kubebuilder:validation:XValidation:rule="(has(self.group) ? 1 : 0) + (has(self.user) ? 1 : 0) + (has(self.serviceAccountRef) ? 1 : 0) == 1",message="exactly one of group, user, serviceAccountRef"
 type PermissionPrincipal struct {
 	// A group by name. A group mirrored from the OIDC login (e.g.
@@ -45,18 +47,23 @@ type PermissionPrincipal struct {
 	ServiceAccountRef *LocalReference `json:"serviceAccountRef,omitempty"`
 }
 
+// PermissionObservation is what Artifact Keeper reports about the permission.
 type PermissionObservation struct {
 	// group, user or service_account.
 	PrincipalType string `json:"principalType,omitempty"`
-	PrincipalID   string `json:"principalId,omitempty"`
-	RepositoryID  string `json:"repositoryId,omitempty"`
+	// The ID of the group, user or service account.
+	PrincipalID string `json:"principalId,omitempty"`
+	// The ID of the repository.
+	RepositoryID string `json:"repositoryId,omitempty"`
 }
 
+// PermissionSpec is the desired state of a Permission.
 type PermissionSpec struct {
 	xpv2.ManagedResourceSpec `json:",inline"`
 	ForProvider              PermissionParameters `json:"forProvider"`
 }
 
+// PermissionStatus is the observed state of a Permission.
 type PermissionStatus struct {
 	xpv2.ManagedResourceStatus `json:",inline"`
 	AtProvider                 PermissionObservation `json:"atProvider,omitempty"`
@@ -70,6 +77,8 @@ type PermissionStatus struct {
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:resource:scope=Namespaced,categories={crossplane,managed,artifactkeeper}
 
+// A Permission is a grant of actions on an Artifact Keeper repository to a
+// group, a user or a service account.
 type Permission struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -80,6 +89,7 @@ type Permission struct {
 
 // +kubebuilder:object:root=true
 
+// PermissionList is a list of Permissions.
 type PermissionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

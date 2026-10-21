@@ -56,11 +56,12 @@ spec:
           metadata:
             type: object
           spec:
+            description: OIDCProviderSpec is the desired state of an OIDCProvider.
             properties:
               forProvider:
                 description: |-
-                  The external name is its ID; without one, the provider of the same name
-                  is adopted.
+                  OIDCProviderParameters are the settings of an OIDC login. The external name
+                  is the provider's ID; without one, the provider of the same name is adopted.
                 properties:
                   adminGroup:
                     description: Members of this IdP group are admins.
@@ -69,6 +70,7 @@ spec:
                     description: Create users at their first login. Default true.
                     type: boolean
                   clientID:
+                    description: The client's ID at the IdP.
                     minLength: 1
                     type: string
                   clientSecretSecretRef:
@@ -77,18 +79,20 @@ spec:
                       the Secret is noticed by its hash, status.atProvider.clientSecretHash).
                     properties:
                       key:
+                        description: The key whose value is used.
                         type: string
                       name:
+                        description: The Secret's name.
                         type: string
                     required:
                     - key
                     - name
                     type: object
                   enabled:
-                    description: Default true.
+                    description: Whether the login is enabled. Default true.
                     type: boolean
                   groupsClaim:
-                    description: Default groups.
+                    description: The claim that holds the user's groups. Default groups.
                     type: string
                   issuerURL:
                     description: The IdP's issuer URL (for Keycloak, https://<host>/realms/<realm>).
@@ -106,7 +110,7 @@ spec:
                     minLength: 1
                     type: string
                   pkce:
-                    description: Default true.
+                    description: Use PKCE in the login flow. Default true.
                     type: boolean
                   redirectURI:
                     description: |-
@@ -114,12 +118,13 @@ spec:
                       the request when empty (.../api/v1/auth/sso/oidc/callback).
                     type: string
                   scopes:
-                    description: Default openid, profile, email.
+                    description: The scopes requested from the IdP. Default openid,
+                      profile, email.
                     items:
                       type: string
                     type: array
                   usernameClaim:
-                    description: Default preferred_username.
+                    description: The claim that holds the user name. Default preferred_username.
                     type: string
                 required:
                 - clientID
@@ -186,6 +191,7 @@ spec:
             - forProvider
             type: object
           status:
+            description: OIDCProviderStatus is the observed state of an OIDCProvider.
             properties:
               atProvider:
                 description: |-

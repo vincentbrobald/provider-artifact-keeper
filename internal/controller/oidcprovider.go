@@ -22,11 +22,14 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
+// oidcClient is the external client of OIDCProvider objects. The external
+// name is the provider's ID.
 type oidcClient struct {
 	kube client.Client
 	ak   *ak.Client
 }
 
+// asOIDC returns mg as an OIDCProvider, or an error if it is another kind.
 func asOIDC(mg resource.Managed) (*v1alpha1.OIDCProvider, error) {
 	cr, ok := mg.(*v1alpha1.OIDCProvider)
 	if !ok {
@@ -35,6 +38,8 @@ func asOIDC(mg resource.Managed) (*v1alpha1.OIDCProvider, error) {
 	return cr, nil
 }
 
+// secret returns the client secret from the Secret of cr's namespace that
+// clientSecretSecretRef names, trimmed. A missing or empty key is an error.
 func (e *oidcClient) secret(ctx context.Context, cr *v1alpha1.OIDCProvider) (string, error) {
 	ref := cr.Spec.ForProvider.ClientSecretSecretRef
 	s := &corev1.Secret{}
@@ -48,11 +53,16 @@ func (e *oidcClient) secret(ctx context.Context, cr *v1alpha1.OIDCProvider) (str
 	return strings.TrimSpace(string(v)), nil
 }
 
+// hash returns the hex SHA-256 of s.
 func hash(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])
 }
 
+// request returns the body that makes the server match cr, with the
+// defaults applied and the given client secret (left out when empty). The
+// redirect URI and admin group go in the attribute mapping, the admin group
+// also in its own field.
 func request(cr *v1alpha1.OIDCProvider, secret string) ak.OIDCProviderRequest {
 	p := cr.Spec.ForProvider
 	scopes := p.Scopes
@@ -78,6 +88,7 @@ func request(cr *v1alpha1.OIDCProvider, secret string) ak.OIDCProviderRequest {
 	}
 }
 
+// orDefault returns v, or def when v is empty.
 func orDefault(v, def string) string {
 	if v == "" {
 		return def
@@ -85,6 +96,9 @@ func orDefault(v, def string) string {
 	return v
 }
 
+// oidcUpToDate reports whether the server's provider matches want, the
+// secret aside: it only has to have one. Scopes match in any order; the
+// attribute mapping must hold exactly want's keys and values.
 func oidcUpToDate(have *ak.OIDCProvider, want ak.OIDCProviderRequest) bool {
 	if have.Name != want.Name || have.IssuerURL != want.IssuerURL || have.ClientID != want.ClientID ||
 		!sameSet(have.Scopes, want.Scopes) || have.IsEnabled != want.IsEnabled || have.AutoCreateUsers != want.AutoCreateUsers ||
@@ -102,6 +116,10 @@ func oidcUpToDate(have *ak.OIDCProvider, want ak.OIDCProviderRequest) bool {
 	return true
 }
 
+// Observe reads the provider by ID or, without one, finds it by name and
+// adopts it. It is up to date when its settings match and the secret's hash
+// is the one recorded when it was last sent. Nothing is compared while cr is
+// being deleted.
 func (e *oidcClient) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
 	cr, err := asOIDC(mg)
 	if err != nil {
@@ -144,6 +162,8 @@ func (e *oidcClient) Observe(ctx context.Context, mg resource.Managed) (managed.
 	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: upToDate, ResourceLateInitialized: adopted}, nil
 }
 
+// Create creates the provider with the secret, records its ID as the
+// external name and the secret's hash.
 func (e *oidcClient) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
 	cr, err := asOIDC(mg)
 	if err != nil {
@@ -162,6 +182,7 @@ func (e *oidcClient) Create(ctx context.Context, mg resource.Managed) (managed.E
 	return managed.ExternalCreation{}, nil
 }
 
+// Update sends every setting with the secret and records the secret's hash.
 func (e *oidcClient) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
 	cr, err := asOIDC(mg)
 	if err != nil {
@@ -178,6 +199,8 @@ func (e *oidcClient) Update(ctx context.Context, mg resource.Managed) (managed.E
 	return managed.ExternalUpdate{}, nil
 }
 
+// Delete deletes the provider; without an ID, or if it is already gone,
+// there is nothing to do.
 func (e *oidcClient) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
 	cr, err := asOIDC(mg)
 	if err != nil {
@@ -192,4 +215,5 @@ func (e *oidcClient) Delete(ctx context.Context, mg resource.Managed) (managed.E
 	return managed.ExternalDelete{}, nil
 }
 
+// Disconnect does nothing: the client holds no connection.
 func (e *oidcClient) Disconnect(context.Context) error { return nil }

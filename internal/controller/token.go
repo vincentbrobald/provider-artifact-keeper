@@ -17,13 +17,16 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
+// The keys of the connection Secret: the token's value and the service
+// account's user name.
 const (
 	KeyToken    = "token"
 	KeyUsername = "username"
 )
 
-// Artifact Keeper shows a token's value only when it is made, so a token is
-// never adopted, nor changed in place: a token whose scopes or repositories
+// tokenClient is the external client of Token objects. The external name is
+// the token's ID. Artifact Keeper shows a token's value only when it is made,
+// so a token is never adopted, nor changed in place: a token whose scopes or repositories
 // differ, or that expired, reads as missing, and Create replaces it in the
 // same reconcile (it makes the new one, revokes the old one, and the new one
 // is published in the connection Secret).
@@ -32,6 +35,7 @@ type tokenClient struct {
 	ak   *ak.Client
 }
 
+// asToken returns mg as a Token, or an error if it is another kind.
 func asToken(mg resource.Managed) (*v1alpha1.Token, error) {
 	cr, ok := mg.(*v1alpha1.Token)
 	if !ok {
@@ -40,6 +44,9 @@ func asToken(mg resource.Managed) (*v1alpha1.Token, error) {
 	return cr, nil
 }
 
+// repositoryIDs returns the IDs of the repositories cr restricts the token
+// to: those of repositoryRefs, then those of repositoryKeys. It fails if one
+// is missing or a referenced Repository has no key yet.
 func (e *tokenClient) repositoryIDs(ctx context.Context, cr *v1alpha1.Token) ([]string, error) {
 	p := cr.Spec.ForProvider
 	ids := make([]string, 0, len(p.RepositoryRefs)+len(p.RepositoryKeys))
@@ -60,6 +67,8 @@ func (e *tokenClient) repositoryIDs(ctx context.Context, cr *v1alpha1.Token) ([]
 	return ids, nil
 }
 
+// find returns the first token of the service account saID that match
+// accepts, or nil if none does.
 func (e *tokenClient) find(ctx context.Context, saID string, match func(ak.Token) bool) (*ak.Token, error) {
 	tokens, err := e.ak.ListTokens(ctx, saID)
 	if err != nil {
@@ -73,12 +82,19 @@ func (e *tokenClient) find(ctx context.Context, saID string, match func(ak.Token
 	return nil, nil
 }
 
+// Observe finds the token by ID among the account's tokens and records what
+// it reports. A token that expired, or whose scopes or repositories differ
+// from the spec, reads as missing so that Create replaces it; otherwise it is
+// up to date (a new name or expiresInDays waits for the next token).
 func (e *tokenClient) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
 	cr, err := asToken(mg)
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
 	id := serverID(cr)
+	// The account's ID comes from the ServiceAccount object, except during
+	// deletion when it was recorded: the object may be gone by then. If it
+	// can't be read during deletion, the token is taken as gone.
 	saID := cr.Status.AtProvider.ServiceAccountID
 	if saID == "" || !meta.WasDeleted(cr) {
 		if saID, _, err = serviceAccount(ctx, e.kube, cr.GetNamespace(), cr.Spec.ForProvider.ServiceAccountRef); err != nil {
@@ -92,6 +108,7 @@ func (e *tokenClient) Observe(ctx context.Context, mg resource.Managed) (managed
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 	have, err := e.find(ctx, saID, func(t ak.Token) bool { return t.ID == id })
+	// An account that's gone (404) or a token not in its list: missing.
 	if ak.IsNotFound(err) || (err == nil && have == nil) {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
@@ -114,6 +131,9 @@ func (e *tokenClient) Observe(ctx context.Context, mg resource.Managed) (managed
 	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: true}, nil
 }
 
+// Create makes a token for the account, records its ID as the external name,
+// revokes the token it replaces and any other of the same name, and returns
+// the value and the account's user name as connection details.
 func (e *tokenClient) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
 	cr, err := asToken(mg)
 	if err != nil {
@@ -123,6 +143,8 @@ func (e *tokenClient) Create(ctx context.Context, mg resource.Managed) (managed.
 	if err != nil {
 		return managed.ExternalCreation{}, err
 	}
+	// A ServiceAccount object not yet observed has no user name in its
+	// status: ask Artifact Keeper.
 	if username == "" {
 		sa, err := e.ak.GetServiceAccount(ctx, saID)
 		if err != nil {
@@ -162,11 +184,15 @@ func (e *tokenClient) Create(ctx context.Context, mg resource.Managed) (managed.
 	}}, nil
 }
 
+// Update does nothing: a token is never changed in place (see tokenClient).
 func (e *tokenClient) Update(_ context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
 	_, err := asToken(mg)
 	return managed.ExternalUpdate{}, err
 }
 
+// Delete revokes the token. It needs the account's ID recorded by Observe:
+// without it, or without a token ID, there is nothing to revoke. A token
+// already gone is no error.
 func (e *tokenClient) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
 	cr, err := asToken(mg)
 	if err != nil {
@@ -181,4 +207,5 @@ func (e *tokenClient) Delete(ctx context.Context, mg resource.Managed) (managed.
 	return managed.ExternalDelete{}, nil
 }
 
+// Disconnect does nothing: the client holds no connection.
 func (e *tokenClient) Disconnect(context.Context) error { return nil }

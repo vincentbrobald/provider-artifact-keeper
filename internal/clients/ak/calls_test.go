@@ -13,6 +13,9 @@ import (
 	"testing"
 )
 
+// recorder is a fake server's script and log: it answers every request with
+// status (200 when 0) and reply as JSON (no body when nil), and records the
+// last request's method, path, raw query and JSON body.
 type recorder struct {
 	method, path, query string
 	body                map[string]any
@@ -20,6 +23,8 @@ type recorder struct {
 	status              int
 }
 
+// server starts a test server driven by rec, closed when the test ends, and
+// returns a client of it (its URL given with a trailing slash).
 func (rec *recorder) server(t *testing.T) *Client {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -41,6 +46,7 @@ func (rec *recorder) server(t *testing.T) *Client {
 	return New(srv.URL+"/", "tok", srv.Client())
 }
 
+// TestCalls checks the method, path and body each client call sends.
 func TestCalls(t *testing.T) {
 	ctx := context.Background()
 	q := int64(5)
@@ -114,12 +120,16 @@ func TestCalls(t *testing.T) {
 	}
 }
 
+// jsonEqual reports whether a and b encode to the same JSON (maps encode with
+// sorted keys).
 func jsonEqual(a, b any) bool {
 	x, _ := json.Marshal(a)
 	y, _ := json.Marshal(b)
 	return string(x) == string(y)
 }
 
+// TestUpdateOIDCProviderReplacesMapping checks that an update always asks for
+// the attribute mapping to be replaced.
 func TestUpdateOIDCProviderReplacesMapping(t *testing.T) {
 	rec := &recorder{}
 	c := rec.server(t)
@@ -131,6 +141,9 @@ func TestUpdateOIDCProviderReplacesMapping(t *testing.T) {
 	}
 }
 
+// TestFinds checks that FindPermission, FindOIDCProvider and
+// FindServiceAccount return only an exact match, and nil without error when
+// there is none.
 func TestFinds(t *testing.T) {
 	ctx := context.Background()
 
@@ -168,6 +181,8 @@ func TestFinds(t *testing.T) {
 	}
 }
 
+// TestFindUserPages checks that FindUser reads the next page when the first
+// has no exact match, and stops after the last page.
 func TestFindUserPages(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		items := []map[string]any{{"id": "x", "username": "alice2"}}
@@ -187,6 +202,8 @@ func TestFindUserPages(t *testing.T) {
 	}
 }
 
+// TestAPIErrors checks the error of a non-2xx answer: its classification, the
+// body cut to 300 bytes and the message.
 func TestAPIErrors(t *testing.T) {
 	rec := &recorder{status: http.StatusConflict, reply: strings.Repeat("x", 400)}
 	err := rec.server(t).DeleteRepository(context.Background(), "k")
@@ -202,6 +219,8 @@ func TestAPIErrors(t *testing.T) {
 	}
 }
 
+// TestDefaultHTTPClient checks that New without an http.Client makes one with
+// a timeout.
 func TestDefaultHTTPClient(t *testing.T) {
 	if c := New("https://ak", "t", nil); c.http == nil || c.http.Timeout == 0 || c.base != "https://ak" {
 		t.Fatalf("a client with a timeout: %+v", c)

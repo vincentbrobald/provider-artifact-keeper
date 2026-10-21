@@ -37,6 +37,9 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
+        description: |-
+          A Token is an API token of an Artifact Keeper service account, published in
+          the connection Secret.
         properties:
           apiVersion:
             description: |-
@@ -56,6 +59,7 @@ spec:
           metadata:
             type: object
           spec:
+            description: TokenSpec is the desired state of a Token.
             properties:
               forProvider:
                 description: |-
@@ -95,6 +99,7 @@ spec:
                       description: LocalReference names an object of the same namespace.
                       properties:
                         name:
+                          description: The object's name.
                           type: string
                       required:
                       - name
@@ -111,6 +116,7 @@ spec:
                       belongs to.
                     properties:
                       name:
+                        description: The object's name.
                         type: string
                     required:
                     - name
@@ -179,6 +185,7 @@ spec:
             - forProvider
             type: object
           status:
+            description: TokenStatus is the observed state of a Token.
             properties:
               atProvider:
                 description: |-
@@ -195,10 +202,14 @@ spec:
                     description: The token's first characters, to recognise it.
                     type: string
                   repositoryIds:
+                    description: |-
+                      The IDs of the repositories the token is restricted to; empty if it
+                      isn't.
                     items:
                       type: string
                     type: array
                   scopes:
+                    description: The token's scopes.
                     items:
                       type: string
                     type: array

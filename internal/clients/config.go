@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Vincent Brobald
 // SPDX-License-Identifier: MPL-2.0
 
+// Package clients makes the Artifact Keeper client of a managed resource
+// from its provider config.
 package clients
 
 import (
@@ -19,11 +21,16 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
+// Credentials are Artifact Keeper's URL and an admin's API token.
 type Credentials struct {
 	URL   string `json:"url"`
 	Token string `json:"token"`
 }
 
+// Connect returns a client of Artifact Keeper with the credentials of mg's
+// provider config, and records mg's use of that config (a
+// ProviderConfigUsage). It fails if the config, its Secret or either
+// credential is missing.
 func Connect(ctx context.Context, kube client.Client, mg resource.ModernManaged) (*ak.Client, error) {
 	spec, err := resolve(ctx, kube, mg)
 	if err != nil {
@@ -39,6 +46,9 @@ func Connect(ctx context.Context, kube client.Client, mg resource.ModernManaged)
 	return ak.New(creds.URL, creds.Token, nil), nil
 }
 
+// resolve returns the spec of the ProviderConfig (of mg's namespace) or
+// ClusterProviderConfig mg refers to, and records the usage. A ProviderConfig's
+// Secret is always read from mg's namespace, whatever namespace it names.
 func resolve(ctx context.Context, kube client.Client, mg resource.ModernManaged) (*v1beta1.ProviderConfigSpec, error) {
 	ref := mg.GetProviderConfigReference()
 	if ref == nil {
@@ -71,6 +81,10 @@ func resolve(ctx context.Context, kube client.Client, mg resource.ModernManaged)
 	return &spec, nil
 }
 
+// credentials reads the URL and token from the source spec names. A Secret
+// that lacks the selected key gives its flat keys url and token (trimmed);
+// otherwise the source (the selected key, an environment variable or a file)
+// must hold JSON {"url": ..., "token": ...}. Missing values are left empty.
 func credentials(ctx context.Context, kube client.Client, spec *v1beta1.ProviderConfigSpec) (Credentials, error) {
 	var c Credentials
 	sel := spec.Credentials.CommonCredentialSelectors

@@ -21,6 +21,7 @@ import (
 	"brobald.be/provider-artifact-keeper/apis/v1beta1"
 )
 
+// secret returns a Secret ns/name holding data.
 func secret(ns, name string, data map[string]string) *corev1.Secret {
 	s := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: name}, Data: map[string][]byte{}}
 	for k, v := range data {
@@ -29,6 +30,8 @@ func secret(ns, name string, data map[string]string) *corev1.Secret {
 	return s
 }
 
+// secretSource returns a provider config spec that reads key of Secret
+// ns/name.
 func secretSource(ns, name, key string) v1beta1.ProviderConfigSpec {
 	return v1beta1.ProviderConfigSpec{Credentials: v1beta1.ProviderCredentials{
 		Source: xpv2.CredentialsSourceSecret,
@@ -37,6 +40,8 @@ func secretSource(ns, name, key string) v1beta1.ProviderConfigSpec {
 	}}
 }
 
+// kube returns a fake Kubernetes client holding objs, with the core and the
+// provider's types registered.
 func kube(t *testing.T, objs ...client.Object) client.Client {
 	t.Helper()
 	s := runtime.NewScheme()
@@ -49,12 +54,17 @@ func kube(t *testing.T, objs ...client.Object) client.Client {
 	return fake.NewClientBuilder().WithScheme(s).WithObjects(objs...).Build()
 }
 
+// repo returns a Repository of namespace team that refers to the provider
+// config kind/name.
 func repo(kind, name string) *v1alpha1.Repository {
 	r := &v1alpha1.Repository{ObjectMeta: metav1.ObjectMeta{Namespace: "team", Name: "r", UID: "u1"}}
 	r.SetProviderConfigReference(&xpv2.ProviderConfigReference{Kind: kind, Name: name})
 	return r
 }
 
+// TestConnect checks both credential layouts: JSON under the selected key of
+// a ClusterProviderConfig's Secret, and flat keys (trimmed) of a
+// ProviderConfig's Secret, read from the resource's namespace.
 func TestConnect(t *testing.T) {
 	ctx := context.Background()
 	cpc := &v1beta1.ClusterProviderConfig{ObjectMeta: metav1.ObjectMeta{Name: "default"},
@@ -88,6 +98,7 @@ func TestConnect(t *testing.T) {
 	}
 }
 
+// TestConnectErrors checks the error of each way Connect can fail.
 func TestConnectErrors(t *testing.T) {
 	ctx := context.Background()
 	empty := &v1beta1.ClusterProviderConfig{ObjectMeta: metav1.ObjectMeta{Name: "empty"},

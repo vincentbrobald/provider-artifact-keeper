@@ -63,11 +63,13 @@ spec:
           metadata:
             type: object
           spec:
+            description: RepositorySpec is the desired state of a Repository.
             properties:
               forProvider:
                 description: |-
-                  Its key (the path segment clients use: /maven/<key>, /npm/<key>, ...) is
-                  the external name, by default the object's name.
+                  RepositoryParameters are the settings of a repository. Its key (the path
+                  segment clients use: /maven/<key>, /npm/<key>, ...) is the external name, by
+                  default the object's name.
                 properties:
                   description:
                     description: Free text shown with the repository; empty clears
@@ -88,6 +90,7 @@ spec:
                       searched first): a Repository object of this namespace (repositoryRef)
                       or any repository's key.
                     items:
+                      description: RepositoryMember is one member of a virtual repository.
                       properties:
                         key:
                           description: |-
@@ -98,6 +101,7 @@ spec:
                           description: A Repository object of this namespace.
                           properties:
                             name:
+                              description: The object's name.
                               type: string
                           required:
                           - name
@@ -203,12 +207,17 @@ spec:
             - forProvider
             type: object
           status:
+            description: RepositoryStatus is the observed state of a Repository.
             properties:
               atProvider:
+                description: RepositoryObservation is what Artifact Keeper reports
+                  about the repository.
                 properties:
                   format:
+                    description: The package format.
                     type: string
                   id:
+                    description: The repository's ID.
                     type: string
                   members:
                     description: A virtual repository's member keys, in priority order.
@@ -216,6 +225,7 @@ spec:
                       type: string
                     type: array
                   storageUsedBytes:
+                    description: Storage the repository uses, in bytes.
                     format: int64
                     type: integer
                   type:

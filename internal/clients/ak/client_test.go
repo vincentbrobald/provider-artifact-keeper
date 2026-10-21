@@ -11,6 +11,8 @@ import (
 	"testing"
 )
 
+// TestErrorsAndAuth checks the bearer token, a 404 as not found, a 401 as
+// another error, and members sorted by priority.
 func TestErrorsAndAuth(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer tok" {
@@ -50,6 +52,8 @@ func TestErrorsAndAuth(t *testing.T) {
 	}
 }
 
+// TestFindGroupPages checks that FindGroup skips a partial match on page 1
+// and finds the exact name on page 2.
 func TestFindGroupPages(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		page := r.URL.Query().Get("page")

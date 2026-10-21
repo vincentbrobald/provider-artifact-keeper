@@ -8,8 +8,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// Artifact Keeper names it svc-<name>. The external name is its ID; without
-// one, svc-<name> is adopted if it exists.
+// ServiceAccountParameters are the settings of a service account. Artifact
+// Keeper names it svc-<name>. The external name is its ID; without one,
+// svc-<name> is adopted if it exists.
 type ServiceAccountParameters struct {
 	// Without the svc- prefix Artifact Keeper adds. Can't change.
 	// +kubebuilder:validation:MinLength=1
@@ -20,11 +21,13 @@ type ServiceAccountParameters struct {
 	// +optional
 	Description string `json:"description,omitempty"`
 
-	// Default true.
+	// Whether the account can be used. Default true.
 	// +optional
 	Active *bool `json:"active,omitempty"`
 }
 
+// ServiceAccountObservation is what Artifact Keeper reports about the
+// account.
 type ServiceAccountObservation struct {
 	// The account's ID (also the external name).
 	ID string `json:"id,omitempty"`
@@ -32,11 +35,13 @@ type ServiceAccountObservation struct {
 	Username string `json:"username,omitempty"`
 }
 
+// ServiceAccountSpec is the desired state of a ServiceAccount.
 type ServiceAccountSpec struct {
 	xpv2.ManagedResourceSpec `json:",inline"`
 	ForProvider              ServiceAccountParameters `json:"forProvider"`
 }
 
+// ServiceAccountStatus is the observed state of a ServiceAccount.
 type ServiceAccountStatus struct {
 	xpv2.ManagedResourceStatus `json:",inline"`
 	AtProvider                 ServiceAccountObservation `json:"atProvider,omitempty"`
@@ -61,6 +66,7 @@ type ServiceAccount struct {
 
 // +kubebuilder:object:root=true
 
+// ServiceAccountList is a list of ServiceAccounts.
 type ServiceAccountList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

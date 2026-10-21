@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Vincent Brobald
 // SPDX-License-Identifier: MPL-2.0
 
+// Package controller holds the provider's controllers: one per managed
+// resource kind, and those of the provider configs.
 package controller
 
 import (
@@ -23,6 +25,7 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
+// kind is a managed resource kind and how to make its external client.
 type kind struct {
 	gvk  schema.GroupVersionKind
 	obj  client.Object
@@ -32,6 +35,7 @@ type kind struct {
 	serverID bool
 }
 
+// kinds returns the managed resource kinds the provider reconciles.
 func kinds() []kind {
 	return []kind{
 		{v1alpha1.RepositoryGroupVersionKind, &v1alpha1.Repository{}, func(k client.Client, c *ak.Client) managed.ExternalClient { return &repositoryClient{kube: k, ak: c} }, false},
@@ -44,6 +48,8 @@ func kinds() []kind {
 	}
 }
 
+// Setup adds the controllers of every kind and of the provider configs to mgr,
+// all started with it.
 func Setup(mgr ctrl.Manager, o xpcontroller.Options) error {
 	if err := setupProviderConfigs(mgr, o); err != nil {
 		return err
@@ -57,7 +63,10 @@ func Setup(mgr ctrl.Manager, o xpcontroller.Options) error {
 }
 
 // SetupGated starts each controller once its CRDs exist (safe-start: a kind
-// is installed only when a ManagedResourceActivationPolicy activates it).
+// is installed only when a ManagedResourceActivationPolicy activates it). The
+// provider config controllers wait for the three provider config CRDs. A
+// controller that fails to start is logged, not returned: the error is
+// always nil.
 func SetupGated(mgr ctrl.Manager, o xpcontroller.Options) error {
 	o.Gate.Register(func() {
 		if err := setupProviderConfigs(mgr, o); err != nil {
@@ -74,6 +83,9 @@ func SetupGated(mgr ctrl.Manager, o xpcontroller.Options) error {
 	return nil
 }
 
+// setupKind adds the managed resource controller of k to mgr. Updates that
+// don't change the desired state (spec, labels, annotations) don't trigger a
+// reconcile; the poll catches drift.
 func setupKind(mgr ctrl.Manager, o xpcontroller.Options, k kind) error {
 	name := managed.ControllerName(k.gvk.GroupKind().String())
 	opts := []managed.ReconcilerOption{
@@ -100,6 +112,9 @@ func setupKind(mgr ctrl.Manager, o xpcontroller.Options, k kind) error {
 		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
 }
 
+// setupProviderConfigs adds the controllers of ProviderConfig and
+// ClusterProviderConfig, which count each config's ProviderConfigUsages and
+// keep a config in use from being deleted.
 func setupProviderConfigs(mgr ctrl.Manager, o xpcontroller.Options) error {
 	usage := resource.ProviderConfigKinds{
 		Usage:     v1beta1.ProviderConfigUsageGroupVersionKind,
@@ -130,11 +145,14 @@ func setupProviderConfigs(mgr ctrl.Manager, o xpcontroller.Options) error {
 	return nil
 }
 
+// connector makes the external client of one kind for each reconcile.
 type connector struct {
 	kube client.Client
 	make func(kube client.Client, c *ak.Client) managed.ExternalClient
 }
 
+// Connect returns the external client of mg, with an Artifact Keeper client
+// built from mg's provider config. mg must be namespaced.
 func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
 	mm, ok := mg.(resource.ModernManaged)
 	if !ok {

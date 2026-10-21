@@ -18,13 +18,18 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
+// deleting marks o as being deleted.
 func deleting(o metav1.Object) {
 	now := metav1.Now()
 	o.SetDeletionTimestamp(&now)
 }
 
+// ptr returns a pointer to a copy of v.
 func ptr[T any](v T) *T { return &v }
 
+// TestOIDCProviderLifecycle takes an OIDC provider through creation, a
+// change of the Secret, adoption by name, deletion, and a Secret without the
+// key.
 func TestOIDCProviderLifecycle(t *testing.T) {
 	ctx := context.Background()
 	s := &corev1.Secret{ObjectMeta: om("kc"), Data: map[string][]byte{"secret": []byte("one\n")}}
@@ -96,6 +101,8 @@ func TestOIDCProviderLifecycle(t *testing.T) {
 	}
 }
 
+// TestServiceAccountLifecycle takes a service account through creation,
+// deactivation, adoption of svc-<name> and deletion.
 func TestServiceAccountLifecycle(t *testing.T) {
 	ctx := context.Background()
 	f, _, c := setup(t)
@@ -141,6 +148,9 @@ func TestServiceAccountLifecycle(t *testing.T) {
 	}
 }
 
+// TestPermissionPrincipalsAndDeletion checks user and service account
+// principals, the errors of a missing user, principal or repository, and
+// deletion with and without an ID.
 func TestPermissionPrincipalsAndDeletion(t *testing.T) {
 	ctx := context.Background()
 	sa := &v1alpha1.ServiceAccount{ObjectMeta: om("ci")}
@@ -219,6 +229,8 @@ func TestPermissionPrincipalsAndDeletion(t *testing.T) {
 	}
 }
 
+// TestVirtualRepository checks a virtual repository's members and their
+// order, the quota comparison, a missing member object and deletion.
 func TestVirtualRepository(t *testing.T) {
 	ctx := context.Background()
 	local := &v1alpha1.Repository{ObjectMeta: om("a-npm")}
@@ -279,6 +291,8 @@ func TestVirtualRepository(t *testing.T) {
 	}
 }
 
+// TestRepositoryKeyOfAnUncreatedObject checks that a Repository without an
+// external name has no key yet.
 func TestRepositoryKeyOfAnUncreatedObject(t *testing.T) {
 	r := &v1alpha1.Repository{ObjectMeta: om("new")}
 	_, kube, _ := setup(t, r)
@@ -287,6 +301,9 @@ func TestRepositoryKeyOfAnUncreatedObject(t *testing.T) {
 	}
 }
 
+// TestTokenOfTheSameNameAndDeletion checks that Create revokes an unknown
+// token of the same name, that name and expiresInDays don't replace a token
+// but expiry does, and Observe and Delete once the account is gone.
 func TestTokenOfTheSameNameAndDeletion(t *testing.T) {
 	ctx := context.Background()
 	const saID = "22222222-2222-2222-2222-222222222222"
@@ -345,6 +362,8 @@ func TestTokenOfTheSameNameAndDeletion(t *testing.T) {
 	}
 }
 
+// TestTokenUserNameOfANewAccount checks that Create asks Artifact Keeper for
+// the user name an unobserved ServiceAccount object lacks.
 func TestTokenUserNameOfANewAccount(t *testing.T) {
 	ctx := context.Background()
 	const saID = "22222222-2222-2222-2222-222222222222"
@@ -365,6 +384,8 @@ func TestTokenUserNameOfANewAccount(t *testing.T) {
 	}
 }
 
+// TestTokenDeleteRevokes checks that Delete revokes an observed token and
+// does nothing for one never observed.
 func TestTokenDeleteRevokes(t *testing.T) {
 	ctx := context.Background()
 	const saID = "22222222-2222-2222-2222-222222222222"
@@ -390,6 +411,8 @@ func TestTokenDeleteRevokes(t *testing.T) {
 	}
 }
 
+// TestClientsRefuseOtherKinds checks that each external client refuses an
+// object of another kind (a Token, or a Repository for the Token client).
 func TestClientsRefuseOtherKinds(t *testing.T) {
 	ctx := context.Background()
 	other := &v1alpha1.Token{}
@@ -423,6 +446,7 @@ func TestClientsRefuseOtherKinds(t *testing.T) {
 	}
 }
 
+// TestKinds checks the list of kinds and which have server-assigned IDs.
 func TestKinds(t *testing.T) {
 	want := map[string]bool{"Repository": false, "Permission": true, "OIDCProvider": true, "ServiceAccount": true, "Token": true}
 	ks := kinds()
@@ -439,6 +463,7 @@ func TestKinds(t *testing.T) {
 	}
 }
 
+// TestDefaults checks displayName and orDefault.
 func TestDefaults(t *testing.T) {
 	r := &v1alpha1.Repository{ObjectMeta: om("k")}
 	meta.SetExternalName(r, "key")
@@ -451,6 +476,8 @@ func TestDefaults(t *testing.T) {
 	}
 }
 
+// TestConnectorNeedsProviderConfig checks that Connect fails without a
+// provider config and succeeds with a ClusterProviderConfig and its Secret.
 func TestConnectorNeedsProviderConfig(t *testing.T) {
 	_, kube, _ := setup(t)
 	conn := &connector{kube: kube, make: kinds()[0].make}

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Vincent Brobald
 // SPDX-License-Identifier: MPL-2.0
 
+// Command provider runs the Crossplane provider for Artifact Keeper: the
+// controllers of its managed resources and provider configs.
 package main
 
 import (
@@ -37,6 +39,9 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/version"
 )
 
+// main parses the flags (each also read from an environment variable,
+// <BINARY>_<FLAG> or the one the flag names), builds the controller manager
+// and runs it until SIGINT or SIGTERM.
 func main() {
 	var (
 		app              = kingpin.New(filepath.Base(os.Args[0]), "Crossplane provider for Artifact Keeper").DefaultEnvars()
@@ -101,6 +106,8 @@ func main() {
 		},
 	}
 
+	// Safe-start: with RBAC to watch CRDs, each controller waits behind a gate
+	// until its CRDs are established; without it, all start at once.
 	canWatch, err := canWatchCRDs(context.TODO(), mgr)
 	kingpin.FatalIfError(err, "SafeStart precheck failed")
 	if canWatch {
@@ -114,6 +121,9 @@ func main() {
 	kingpin.FatalIfError(mgr.Start(ctrl.SetupSignalHandler()), "Cannot start controller manager")
 }
 
+// canWatchCRDs reports whether the provider may get, list and watch
+// CustomResourceDefinitions, asked through SelfSubjectAccessReviews. An error
+// means a review couldn't be made.
 func canWatchCRDs(ctx context.Context, mgr manager.Manager) (bool, error) {
 	for _, verb := range []string{"get", "list", "watch"} {
 		sar := &authv1.SelfSubjectAccessReview{Spec: authv1.SelfSubjectAccessReviewSpec{
