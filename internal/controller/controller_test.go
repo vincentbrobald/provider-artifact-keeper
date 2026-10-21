@@ -15,6 +15,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -25,18 +26,40 @@ import (
 
 // fakeAK is an in-memory Artifact Keeper: the endpoints the controllers use.
 type fakeAK struct {
-	mu     sync.Mutex
-	repos  map[string]map[string]any // key -> repository
-	groups map[string]string         // name -> id
-	perms  map[string]ak.Permission  // id -> permission
-	sas    map[string]ak.ServiceAccount
-	tokens map[string][]ak.Token // service account id -> tokens
-	n      int
+	mu      sync.Mutex
+	repos   map[string]map[string]any // key -> repository
+	members map[string][]ak.Member    // virtual repository key -> members
+	groups  map[string]string         // name -> id
+	users   map[string]string         // name -> id
+	perms   map[string]ak.Permission  // id -> permission
+	sas     map[string]ak.ServiceAccount
+	tokens  map[string][]ak.Token     // service account id -> tokens
+	oidc    map[string]map[string]any // id -> provider (as returned)
+	secrets map[string]string         // OIDC provider id -> client secret
+	n       int
 }
 
 func newFakeAK() *fakeAK {
-	return &fakeAK{repos: map[string]map[string]any{}, groups: map[string]string{}, perms: map[string]ak.Permission{},
-		sas: map[string]ak.ServiceAccount{}, tokens: map[string][]ak.Token{}}
+	return &fakeAK{repos: map[string]map[string]any{}, members: map[string][]ak.Member{}, groups: map[string]string{},
+		users: map[string]string{}, perms: map[string]ak.Permission{}, sas: map[string]ak.ServiceAccount{},
+		tokens: map[string][]ak.Token{}, oidc: map[string]map[string]any{}, secrets: map[string]string{}}
+}
+
+// oidcFromRequest is what Artifact Keeper returns for a POST or PUT body:
+// the secret replaced by has_secret.
+func (f *fakeAK) oidcFromRequest(id string, body map[string]any) map[string]any {
+	p := map[string]any{"id": id}
+	for k, v := range body {
+		switch k {
+		case "client_secret":
+			f.secrets[id] = v.(string)
+		case "attribute_mapping_replace", "admin_group":
+		default:
+			p[k] = v
+		}
+	}
+	p["has_secret"] = f.secrets[id] != ""
+	return p
 }
 
 func (f *fakeAK) id() string {
@@ -60,6 +83,82 @@ func (f *fakeAK) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		body["curation_default_action"] = "allow"
 		f.repos[body["key"].(string)] = body
 		out(body)
+	case seg[0] == "repositories" && len(seg) == 3 && seg[2] == "members":
+		switch r.Method {
+		case http.MethodGet:
+			rows := []map[string]any{}
+			for _, m := range f.members[seg[1]] {
+				rows = append(rows, map[string]any{"member_repo_key": m.Key, "priority": m.Priority})
+			}
+			out(map[string]any{"members": rows})
+		case http.MethodPut:
+			ms := []ak.Member{}
+			for _, m := range body["members"].([]any) {
+				x := m.(map[string]any)
+				ms = append(ms, ak.Member{Key: x["member_key"].(string), Priority: int(x["priority"].(float64))})
+			}
+			f.members[seg[1]] = ms
+		}
+	case p == "/users":
+		items := []map[string]any{}
+		for n, id := range f.users {
+			if strings.Contains(n, r.URL.Query().Get("search")) {
+				items = append(items, map[string]any{"id": id, "username": n})
+			}
+		}
+		out(map[string]any{"items": items, "pagination": map[string]any{"total_pages": 1}})
+	case p == "/admin/sso/oidc" && r.Method == http.MethodGet:
+		items := []map[string]any{}
+		for _, x := range f.oidc {
+			items = append(items, x)
+		}
+		out(items)
+	case p == "/admin/sso/oidc" && r.Method == http.MethodPost:
+		id := f.id()
+		f.oidc[id] = f.oidcFromRequest(id, body)
+		out(f.oidc[id])
+	case seg[0] == "admin" && len(seg) == 4:
+		x, ok := f.oidc[seg[3]]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			out(x)
+		case http.MethodPut:
+			f.oidc[seg[3]] = f.oidcFromRequest(seg[3], body)
+		case http.MethodDelete:
+			delete(f.oidc, seg[3])
+		}
+	case p == "/service-accounts" && r.Method == http.MethodGet:
+		items := []ak.ServiceAccount{}
+		for _, x := range f.sas {
+			items = append(items, x)
+		}
+		out(map[string]any{"items": items})
+	case p == "/service-accounts" && r.Method == http.MethodPost:
+		sa := ak.ServiceAccount{ID: f.id(), Username: "svc-" + body["name"].(string), IsActive: true}
+		f.sas[sa.ID] = sa
+		out(sa)
+	case seg[0] == "service-accounts" && len(seg) == 2:
+		sa, ok := f.sas[seg[1]]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			out(sa)
+		case http.MethodPatch:
+			if v, ok := body["is_active"].(bool); ok {
+				sa.IsActive = v
+			}
+			f.sas[seg[1]] = sa
+		case http.MethodDelete:
+			delete(f.sas, seg[1])
+			delete(f.tokens, seg[1])
+		}
 	case seg[0] == "repositories" && len(seg) == 2:
 		repo, ok := f.repos[seg[1]]
 		if !ok {
@@ -143,6 +242,9 @@ func setup(t *testing.T, objs ...client.Object) (*fakeAK, client.Client, *ak.Cli
 	t.Helper()
 	s := runtime.NewScheme()
 	if err := apis.AddToScheme(s); err != nil {
+		t.Fatal(err)
+	}
+	if err := clientgoscheme.AddToScheme(s); err != nil {
 		t.Fatal(err)
 	}
 	f := newFakeAK()

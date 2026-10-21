@@ -18,10 +18,12 @@ import (
 	"brobald.be/provider-artifact-keeper/internal/clients/ak"
 )
 
-// External names of referenced objects (same namespace). A referenced
-// object that has no external name yet (not created) is an error: the
-// reconcile is retried.
+// The helpers below resolve references to objects of the same namespace. A
+// referenced object that has no external name yet (not created) is an error:
+// the reconcile is retried.
 
+// repositoryKey returns the key of the referenced Repository object, or key
+// when there is no reference (the API validation allows only one of them).
 func repositoryKey(ctx context.Context, kube client.Client, ns string, ref *v1alpha1.LocalReference, key string) (string, error) {
 	if ref == nil {
 		if key == "" {
@@ -39,7 +41,8 @@ func repositoryKey(ctx context.Context, kube client.Client, ns string, ref *v1al
 	return "", errors.Errorf("Repository %s has no key yet", ref.Name)
 }
 
-// repositoryID: the repository's ID in Artifact Keeper.
+// repositoryID returns the repository's ID in Artifact Keeper, which
+// permissions and tokens refer to (repositoryKey's arguments).
 func repositoryID(ctx context.Context, kube client.Client, c *ak.Client, ns string, ref *v1alpha1.LocalReference, key string) (string, error) {
 	k, err := repositoryKey(ctx, kube, ns, ref, key)
 	if err != nil {
@@ -52,7 +55,7 @@ func repositoryID(ctx context.Context, kube client.Client, c *ak.Client, ns stri
 	return r.ID, nil
 }
 
-// serviceAccount: a ServiceAccount object's ID and user name.
+// serviceAccount returns a ServiceAccount object's ID and user name.
 func serviceAccount(ctx context.Context, kube client.Client, ns string, ref v1alpha1.LocalReference) (id, username string, err error) {
 	sa := &v1alpha1.ServiceAccount{}
 	if err := kube.Get(ctx, types.NamespacedName{Namespace: ns, Name: ref.Name}, sa); err != nil {
@@ -65,6 +68,7 @@ func serviceAccount(ctx context.Context, kube client.Client, ns string, ref v1al
 	return id, sa.Status.AtProvider.Username, nil
 }
 
+// sameSet tells whether a and b hold the same strings, in any order.
 func sameSet(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -81,6 +85,7 @@ func sameSet(a, b []string) bool {
 	return true
 }
 
+// deref returns *p, or def when p is nil (an optional field's default).
 func deref[T any](p *T, def T) T {
 	if p == nil {
 		return def
@@ -90,8 +95,8 @@ func deref[T any](p *T, def T) T {
 
 var uuidRE = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
-// serverID: the external name when it is an ID Artifact Keeper assigned
-// (a UUID), else "" (not created yet, or to be found).
+// serverID returns the external name when it is an ID Artifact Keeper
+// assigned (a UUID), else "" (not created yet, or to be found).
 func serverID(o metav1.Object) string {
 	if id := meta.GetExternalName(o); uuidRE.MatchString(id) {
 		return id

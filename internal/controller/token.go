@@ -81,6 +81,9 @@ func (e *tokenClient) Observe(ctx context.Context, mg resource.Managed) (managed
 		return managed.ExternalObservation{}, err
 	}
 	id := serverID(cr)
+	// The account's ID: from the ServiceAccount object, except while being
+	// deleted with an ID recorded in status (the object may be gone already,
+	// deleted together with its tokens).
 	saID := cr.Status.AtProvider.ServiceAccountID
 	if saID == "" || !meta.WasDeleted(cr) {
 		if saID, _, err = serviceAccount(ctx, e.kube, cr.GetNamespace(), cr.Spec.ForProvider.ServiceAccountRef); err != nil {
@@ -111,6 +114,7 @@ func (e *tokenClient) Observe(ctx context.Context, mg resource.Managed) (managed
 		return managed.ExternalObservation{}, err
 	}
 	cr.SetConditions(xpv2.Available())
+	// Name and expiresInDays are not compared: they apply to the next token.
 	upToDate := !have.IsExpired && sameSet(have.Scopes, cr.Spec.ForProvider.Scopes) && sameSet(have.RepositoryIDs, repos)
 	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: upToDate}, nil
 }
@@ -167,6 +171,7 @@ func (e *tokenClient) Delete(ctx context.Context, mg resource.Managed) (managed.
 		return managed.ExternalDelete{}, err
 	}
 	cr.SetConditions(xpv2.Deleting())
+	// Without both IDs the token was never observed: nothing to revoke.
 	if id := serverID(cr); id != "" && cr.Status.AtProvider.ServiceAccountID != "" {
 		if err := e.ak.RevokeToken(ctx, cr.Status.AtProvider.ServiceAccountID, id); err != nil && !ak.IsNotFound(err) {
 			return managed.ExternalDelete{}, errors.Wrap(err, "cannot revoke token")

@@ -8,15 +8,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// TokenParameters: an API token of a service account, published in the
-// connection Secret (key token; user name in key username). Artifact Keeper
-// shows a token only when it is made: a change of the parameters makes a
-// new token (and revokes the old one). The external name is its ID, found
-// by name when empty.
+// TokenParameters are an API token of a service account, published in the
+// connection Secret (key token; the account's user name in key username).
+// The external name is the token's ID. Artifact Keeper shows a token's value
+// only when it is made, so a token is never adopted: without an external
+// name, a token of the same name is revoked and a new one made. A change of
+// scopes or repositories, or the token's expiry, revokes it and makes a new
+// one; a change of name or expiresInDays applies only to the next token.
 type TokenParameters struct {
 	// The ServiceAccount object (this namespace) the token belongs to.
 	ServiceAccountRef LocalReference `json:"serviceAccountRef"`
 
+	// The token's name in Artifact Keeper, unique per service account.
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
@@ -29,6 +32,8 @@ type TokenParameters struct {
 	// are empty.
 	// +optional
 	RepositoryRefs []LocalReference `json:"repositoryRefs,omitempty"`
+	// Keys of repositories to restrict the token to (any repository,
+	// including ones no Repository object manages).
 	// +optional
 	RepositoryKeys []string `json:"repositoryKeys,omitempty"`
 
@@ -37,14 +42,22 @@ type TokenParameters struct {
 	ExpiresInDays *int64 `json:"expiresInDays,omitempty"`
 }
 
-// TokenObservation: what Artifact Keeper reports.
+// TokenObservation is what Artifact Keeper reports about the token (never
+// its value).
 type TokenObservation struct {
-	ID               string   `json:"id,omitempty"`
-	ServiceAccountID string   `json:"serviceAccountId,omitempty"`
-	Prefix           string   `json:"prefix,omitempty"`
-	ExpiresAt        string   `json:"expiresAt,omitempty"`
-	RepositoryIDs    []string `json:"repositoryIds,omitempty"`
-	Scopes           []string `json:"scopes,omitempty"`
+	// The token's ID (also the external name).
+	ID string `json:"id,omitempty"`
+	// The ID of the service account it belongs to, kept so that the token
+	// can be revoked after the ServiceAccount object is gone.
+	ServiceAccountID string `json:"serviceAccountId,omitempty"`
+	// The token's first characters, to recognise it.
+	Prefix string `json:"prefix,omitempty"`
+	// When the token expires; empty if it doesn't.
+	ExpiresAt string `json:"expiresAt,omitempty"`
+	// The IDs of the repositories it is restricted to.
+	RepositoryIDs []string `json:"repositoryIds,omitempty"`
+	// Its scopes.
+	Scopes []string `json:"scopes,omitempty"`
 }
 
 // TokenSpec defines the desired state of a Token.

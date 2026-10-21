@@ -8,26 +8,30 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ServiceAccountParameters: a non-human user (e.g. a team's CI). Artifact
-// Keeper names it svc-<name>; the external name is its ID, found by user
-// name when empty.
+// ServiceAccountParameters are a non-human user (e.g. a team's CI). Artifact
+// Keeper names it svc-<name>. The external name is its ID; without one,
+// svc-<name> is adopted if it exists.
 type ServiceAccountParameters struct {
 	// Without the svc- prefix Artifact Keeper adds. Can't change.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="name can't change"
 	Name string `json:"name"`
 
+	// Free text, set at creation only.
 	// +optional
 	Description string `json:"description,omitempty"`
 
-	// Default true.
+	// Whether the account is active. Default true.
 	// +optional
 	Active *bool `json:"active,omitempty"`
 }
 
-// ServiceAccountObservation: what Artifact Keeper reports.
+// ServiceAccountObservation is what Artifact Keeper reports about the
+// account.
 type ServiceAccountObservation struct {
-	ID       string `json:"id,omitempty"`
+	// The account's ID (also the external name).
+	ID string `json:"id,omitempty"`
+	// Its user name, svc-<name>; Permissions and Tokens refer to it.
 	Username string `json:"username,omitempty"`
 }
 

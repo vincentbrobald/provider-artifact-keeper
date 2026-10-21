@@ -31,7 +31,7 @@ func asRepository(mg resource.Managed) (*v1alpha1.Repository, error) {
 	return cr, nil
 }
 
-// desiredMembers: the member keys, in order.
+// desiredMembers returns the member keys, in priority order.
 func (e *repositoryClient) desiredMembers(ctx context.Context, cr *v1alpha1.Repository) ([]string, error) {
 	keys := make([]string, 0, len(cr.Spec.ForProvider.Members))
 	for _, m := range cr.Spec.ForProvider.Members {
@@ -44,6 +44,7 @@ func (e *repositoryClient) desiredMembers(ctx context.Context, cr *v1alpha1.Repo
 	return keys, nil
 }
 
+// displayName is the repository's display name: spec name, else the key.
 func displayName(cr *v1alpha1.Repository) string {
 	if cr.Spec.ForProvider.Name != "" {
 		return cr.Spec.ForProvider.Name
@@ -74,6 +75,8 @@ func (e *repositoryClient) Observe(ctx context.Context, mg resource.Managed) (ma
 	}
 	cr.Status.AtProvider = v1alpha1.RepositoryObservation{ID: r.ID, Format: r.Format, Type: r.RepoType, StorageUsedBytes: r.StorageUsedBytes}
 
+	// The quota is compared only when set: unset leaves the server's as it
+	// is (Update doesn't send it either).
 	upToDate := r.Name == displayName(cr) &&
 		deref(r.Description, "") == p.Description &&
 		r.AllowAnonymousAccess == deref(p.Public, false) &&
@@ -92,6 +95,7 @@ func (e *repositoryClient) Observe(ctx context.Context, mg resource.Managed) (ma
 			got = append(got, m.Key)
 		}
 		cr.Status.AtProvider.Members = got
+		// In order: the order is the members' priority.
 		upToDate = upToDate && equalOrdered(got, want)
 	}
 	cr.SetConditions(xpv2.Available())
@@ -135,6 +139,7 @@ func (e *repositoryClient) Update(ctx context.Context, mg resource.Managed) (man
 		return managed.ExternalUpdate{}, err
 	}
 	key := meta.GetExternalName(cr)
+	// The update must carry the current curation action (ak.UpdateRepository).
 	r, err := e.ak.GetRepository(ctx, key)
 	if err != nil {
 		return managed.ExternalUpdate{}, err
@@ -164,6 +169,7 @@ func (e *repositoryClient) Delete(ctx context.Context, mg resource.Managed) (man
 
 func (e *repositoryClient) Disconnect(context.Context) error { return nil }
 
+// equalOrdered tells whether a and b hold the same strings in the same order.
 func equalOrdered(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

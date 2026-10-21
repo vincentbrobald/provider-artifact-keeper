@@ -33,7 +33,8 @@ func asPermission(mg resource.Managed) (*v1alpha1.Permission, error) {
 	return cr, nil
 }
 
-// desired: the permission as Artifact Keeper stores it (IDs resolved).
+// desired returns the permission as Artifact Keeper stores it (IDs
+// resolved).
 func (e *permissionClient) desired(ctx context.Context, cr *v1alpha1.Permission) (ak.Permission, error) {
 	p := cr.Spec.ForProvider
 	out := ak.Permission{TargetType: "repository", Actions: p.Actions}
@@ -113,6 +114,9 @@ func (e *permissionClient) Observe(ctx context.Context, mg resource.Managed) (ma
 		if have == nil {
 			return managed.ExternalObservation{ResourceExists: false}, nil
 		}
+		// Adopted: the reconciler saves the object (and so this external
+		// name) only after an observation that reports a late
+		// initialization; without it the ID would be lost.
 		meta.SetExternalName(cr, have.ID)
 		adopted = true
 	}

@@ -60,8 +60,8 @@ spec:
             properties:
               forProvider:
                 description: |-
-                  OIDCProviderParameters: an OIDC login of Artifact Keeper. The external
-                  name is its ID, found by name when empty.
+                  OIDCProviderParameters are an OIDC login of Artifact Keeper. The external
+                  name is its ID; without one, the provider of the same name is adopted.
                 properties:
                   adminGroup:
                     description: Members of this IdP group are admins.
@@ -70,6 +70,7 @@ spec:
                     description: Create users at their first login. Default true.
                     type: boolean
                   clientID:
+                    description: The client's ID at the IdP.
                     minLength: 1
                     type: string
                   clientSecretSecretRef:
@@ -86,12 +87,13 @@ spec:
                     - name
                     type: object
                   enabled:
-                    description: Default true.
+                    description: Offer this login. Default true.
                     type: boolean
                   groupsClaim:
                     description: Claim with the user's groups. Default groups.
                     type: string
                   issuerURL:
+                    description: The IdP's issuer URL (for Keycloak, https://<host>/realms/<realm>).
                     minLength: 1
                     type: string
                   mapGroupsToGroups:
@@ -106,7 +108,7 @@ spec:
                     minLength: 1
                     type: string
                   pkce:
-                    description: Default true.
+                    description: Use PKCE in the login's code exchange. Default true.
                     type: boolean
                   redirectURI:
                     description: |-
@@ -189,12 +191,15 @@ spec:
             description: OIDCProviderStatus represents the observed state of an OIDCProvider.
             properties:
               atProvider:
-                description: 'OIDCProviderObservation: what Artifact Keeper reports.'
+                description: |-
+                  OIDCProviderObservation is what Artifact Keeper reports about the login
+                  (never the client secret).
                 properties:
                   clientSecretHash:
                     description: SHA-256 of the client secret last sent.
                     type: string
                   id:
+                    description: The provider's ID (also the external name).
                     type: string
                 type: object
               conditions:

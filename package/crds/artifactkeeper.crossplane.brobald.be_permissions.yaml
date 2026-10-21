@@ -60,9 +60,10 @@ spec:
             properties:
               forProvider:
                 description: |-
-                  PermissionParameters: who may do what on a repository. One permission per
-                  principal and repository (Artifact Keeper's rule): the external name is
-                  the permission's ID, found by principal and repository when empty.
+                  PermissionParameters are who may do what on a repository. Artifact Keeper
+                  allows one permission per principal and repository: the external name is
+                  the permission's ID, and without one the permission of the same principal
+                  on the same repository is adopted.
                 properties:
                   actions:
                     description: 'Actions: read, write, delete, admin (Artifact Keeper''s
@@ -97,11 +98,14 @@ spec:
                       rule: '(has(self.group) ? 1 : 0) + (has(self.user) ? 1 : 0)
                         + (has(self.serviceAccountRef) ? 1 : 0) == 1'
                   repositoryKey:
+                    description: |-
+                      A repository's key (any repository, including ones no Repository
+                      object manages).
                     type: string
                   repositoryRef:
                     description: |-
-                      The repository: exactly one of repositoryRef (a Repository object of
-                      this namespace) and repositoryKey.
+                      The repository: exactly one of repositoryRef and repositoryKey.
+                      A Repository object of this namespace.
                     properties:
                       name:
                         type: string
@@ -112,6 +116,9 @@ spec:
                 - actions
                 - principal
                 type: object
+                x-kubernetes-validations:
+                - message: exactly one of repositoryRef and repositoryKey
+                  rule: has(self.repositoryRef) != has(self.repositoryKey)
               managementPolicies:
                 default:
                 - '*'
@@ -174,13 +181,18 @@ spec:
             description: PermissionStatus represents the observed state of a Permission.
             properties:
               atProvider:
-                description: 'PermissionObservation: what Artifact Keeper reports.'
+                description: |-
+                  PermissionObservation is what Artifact Keeper reports about the
+                  permission.
                 properties:
                   principalId:
+                    description: The principal's ID.
                     type: string
                   principalType:
+                    description: group, user or service_account.
                     type: string
                   repositoryId:
+                    description: The repository's ID.
                     type: string
                 type: object
               conditions:

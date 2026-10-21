@@ -8,17 +8,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// OIDCProviderParameters: an OIDC login of Artifact Keeper. The external
-// name is its ID, found by name when empty.
+// OIDCProviderParameters are an OIDC login of Artifact Keeper. The external
+// name is its ID; without one, the provider of the same name is adopted.
 type OIDCProviderParameters struct {
 	// The name shown on the login page; also how an existing provider is
 	// found.
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
+	// The IdP's issuer URL (for Keycloak, https://<host>/realms/<realm>).
 	// +kubebuilder:validation:MinLength=1
 	IssuerURL string `json:"issuerURL"`
 
+	// The client's ID at the IdP.
 	// +kubebuilder:validation:MinLength=1
 	ClientID string `json:"clientID"`
 
@@ -56,17 +58,19 @@ type OIDCProviderParameters struct {
 	// +optional
 	AutoCreateUsers *bool `json:"autoCreateUsers,omitempty"`
 
-	// Default true.
+	// Use PKCE in the login's code exchange. Default true.
 	// +optional
 	PKCE *bool `json:"pkce,omitempty"`
 
-	// Default true.
+	// Offer this login. Default true.
 	// +optional
 	Enabled *bool `json:"enabled,omitempty"`
 }
 
-// OIDCProviderObservation: what Artifact Keeper reports.
+// OIDCProviderObservation is what Artifact Keeper reports about the login
+// (never the client secret).
 type OIDCProviderObservation struct {
+	// The provider's ID (also the external name).
 	ID string `json:"id,omitempty"`
 	// SHA-256 of the client secret last sent.
 	ClientSecretHash string `json:"clientSecretHash,omitempty"`

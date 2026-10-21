@@ -52,12 +52,14 @@ spec:
             type: object
           spec:
             description: |-
-              ProviderConfigSpec: the credentials. A Secret source holds either JSON
-              under the selected key ({"url": "https://...", "token": "..."}) or, when
-              the key is missing, the flat keys url and token.
+              ProviderConfigSpec holds the provider's credentials: Artifact Keeper's URL
+              and an admin's API token.
             properties:
               credentials:
-                description: 'ProviderCredentials: where the credentials come from.'
+                description: |-
+                  Where the credentials come from. A Secret holds either JSON under the
+                  selected key ({"url": "https://...", "token": "..."}) or, when the
+                  Secret has no such key, the flat keys url and token.
                 properties:
                   env:
                     description: |-
@@ -102,8 +104,8 @@ spec:
                     type: object
                   source:
                     description: |-
-                      A CredentialsSource is a source from which provider credentials may be
-                      acquired.
+                      The kind of source: Secret (JSON or flat keys), or JSON from the
+                      environment or a file.
                     enum:
                     - None
                     - Secret

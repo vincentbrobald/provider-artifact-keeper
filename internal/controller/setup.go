@@ -31,10 +31,12 @@ type kind struct {
 	gvk  schema.GroupVersionKind
 	obj  client.Object
 	make func(kube client.Client, c *ak.Client) managed.ExternalClient
-	// serverID: Artifact Keeper assigns the external name (an ID); else it
-	// is the object's name unless set (a repository's key).
+	// serverID: Artifact Keeper assigns the external name (an ID). Otherwise
+	// the external name defaults to the object's name (a repository's key).
 	serverID bool
 }
+
+// kinds lists the managed resource kinds.
 
 func kinds() []kind {
 	return []kind{
@@ -48,7 +50,8 @@ func kinds() []kind {
 	}
 }
 
-// Setup starts every controller now.
+// Setup sets up every controller at once, without waiting for CRDs (when
+// the provider may not watch them: no safe-start).
 func Setup(mgr ctrl.Manager, o xpcontroller.Options) error {
 	if err := setupProviderConfigs(mgr, o); err != nil {
 		return err
@@ -89,7 +92,8 @@ func setupKind(mgr ctrl.Manager, o xpcontroller.Options, k kind) error {
 		managed.WithManagementPolicies(),
 	}
 	if k.serverID {
-		// No name-as-external-name: the ID comes with the creation.
+		// No initializers: drops the default one that sets the external name
+		// to the object's name, since the ID comes with the creation.
 		opts = append(opts, managed.WithInitializers())
 	}
 	if o.MetricOptions != nil {

@@ -8,15 +8,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ProviderConfigSpec: the credentials. A Secret source holds either JSON
-// under the selected key ({"url": "https://...", "token": "..."}) or, when
-// the key is missing, the flat keys url and token.
+// ProviderConfigSpec holds the provider's credentials: Artifact Keeper's URL
+// and an admin's API token.
 type ProviderConfigSpec struct {
+	// Where the credentials come from. A Secret holds either JSON under the
+	// selected key ({"url": "https://...", "token": "..."}) or, when the
+	// Secret has no such key, the flat keys url and token.
 	Credentials ProviderCredentials `json:"credentials"`
 }
 
-// ProviderCredentials: where the credentials come from.
+// ProviderCredentials are where the credentials come from.
 type ProviderCredentials struct {
+	// The kind of source: Secret (JSON or flat keys), or JSON from the
+	// environment or a file.
 	// +kubebuilder:validation:Enum=None;Secret;Environment;Filesystem
 	Source xpv2.CredentialsSource `json:"source"`
 

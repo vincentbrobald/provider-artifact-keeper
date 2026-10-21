@@ -55,11 +55,15 @@ func (e *serviceAccountClient) Observe(ctx context.Context, mg resource.Managed)
 		if have == nil {
 			return managed.ExternalObservation{ResourceExists: false}, nil
 		}
+		// Adopted: saved through the late initialization (see permission.go).
 		meta.SetExternalName(cr, have.ID)
 		adopted = true
 	}
 	cr.Status.AtProvider = v1alpha1.ServiceAccountObservation{ID: have.ID, Username: have.Username}
 	cr.SetConditions(xpv2.Available())
+	// Only activity is managed (the description is set at creation). Being
+	// deleted, it is reported up to date so that no update precedes the
+	// deletion.
 	upToDate := have.IsActive == deref(cr.Spec.ForProvider.Active, true)
 	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: upToDate || meta.WasDeleted(cr), ResourceLateInitialized: adopted}, nil
 }

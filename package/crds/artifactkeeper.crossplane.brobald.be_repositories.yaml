@@ -67,11 +67,13 @@ spec:
             properties:
               forProvider:
                 description: |-
-                  RepositoryParameters: what Artifact Keeper's repository should be. Its key
-                  (the path segment clients use: /maven/<key>, /npm/<key>, ...) is the
+                  RepositoryParameters are what Artifact Keeper's repository should be. Its
+                  key (the path segment clients use: /maven/<key>, /npm/<key>, ...) is the
                   external name, by default the object's name.
                 properties:
                   description:
+                    description: Free text shown with the repository; empty clears
+                      it.
                     type: string
                   format:
                     description: |-
@@ -84,16 +86,19 @@ spec:
                       rule: self == oldSelf
                   members:
                     description: |-
-                      Members of a virtual repository, first first: a Repository object of
-                      this namespace (repositoryRef) or any repository's key.
+                      Members of a virtual repository, in priority order (the first is
+                      searched first): a Repository object of this namespace (repositoryRef)
+                      or any repository's key.
                     items:
                       description: RepositoryMember is one member of a virtual repository.
                       properties:
                         key:
+                          description: |-
+                            A repository's key (any repository, including ones no Repository
+                            object manages).
                           type: string
                         repositoryRef:
-                          description: LocalReference names an object of the same
-                            namespace.
+                          description: A Repository object of this namespace.
                           properties:
                             name:
                               type: string
@@ -113,7 +118,9 @@ spec:
                       false.
                     type: boolean
                   quotaBytes:
-                    description: Storage quota in bytes; none when unset.
+                    description: |-
+                      Storage quota in bytes. Unset: no quota at creation, and an existing
+                      quota is left as it is (removing the field doesn't remove a quota).
                     format: int64
                     type: integer
                   type:
@@ -202,20 +209,28 @@ spec:
             description: RepositoryStatus represents the observed state of a Repository.
             properties:
               atProvider:
-                description: 'RepositoryObservation: what Artifact Keeper reports.'
+                description: |-
+                  RepositoryObservation is what Artifact Keeper reports about the
+                  repository.
                 properties:
                   format:
+                    description: Its package format.
                     type: string
                   id:
+                    description: The repository's ID (references from permissions
+                      and tokens use it).
                     type: string
                   members:
+                    description: A virtual repository's member keys, in priority order.
                     items:
                       type: string
                     type: array
                   storageUsedBytes:
+                    description: Bytes its packages take.
                     format: int64
                     type: integer
                   type:
+                    description: local, remote or virtual.
                     type: string
                 type: object
               conditions:

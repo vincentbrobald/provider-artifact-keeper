@@ -8,17 +8,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// PermissionParameters: who may do what on a repository. One permission per
-// principal and repository (Artifact Keeper's rule): the external name is
-// the permission's ID, found by principal and repository when empty.
+// PermissionParameters are who may do what on a repository. Artifact Keeper
+// allows one permission per principal and repository: the external name is
+// the permission's ID, and without one the permission of the same principal
+// on the same repository is adopted.
+// +kubebuilder:validation:XValidation:rule="has(self.repositoryRef) != has(self.repositoryKey)",message="exactly one of repositoryRef and repositoryKey"
 type PermissionParameters struct {
 	// The principal: exactly one of group, user, serviceAccountRef.
 	Principal PermissionPrincipal `json:"principal"`
 
-	// The repository: exactly one of repositoryRef (a Repository object of
-	// this namespace) and repositoryKey.
+	// The repository: exactly one of repositoryRef and repositoryKey.
+	// A Repository object of this namespace.
 	// +optional
 	RepositoryRef *LocalReference `json:"repositoryRef,omitempty"`
+	// A repository's key (any repository, including ones no Repository
+	// object manages).
 	// +optional
 	RepositoryKey string `json:"repositoryKey,omitempty"`
 
@@ -43,11 +47,15 @@ type PermissionPrincipal struct {
 	ServiceAccountRef *LocalReference `json:"serviceAccountRef,omitempty"`
 }
 
-// PermissionObservation: what Artifact Keeper reports.
+// PermissionObservation is what Artifact Keeper reports about the
+// permission.
 type PermissionObservation struct {
+	// group, user or service_account.
 	PrincipalType string `json:"principalType,omitempty"`
-	PrincipalID   string `json:"principalId,omitempty"`
-	RepositoryID  string `json:"repositoryId,omitempty"`
+	// The principal's ID.
+	PrincipalID string `json:"principalId,omitempty"`
+	// The repository's ID.
+	RepositoryID string `json:"repositoryId,omitempty"`
 }
 
 // PermissionSpec defines the desired state of a Permission.

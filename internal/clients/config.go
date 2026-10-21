@@ -57,13 +57,15 @@ func resolve(ctx context.Context, kube client.Client, mg resource.ModernManaged)
 			return nil, errors.Wrap(err, "cannot get ClusterProviderConfig")
 		}
 		spec = pc.Spec
-	case "ProviderConfig", "":
+	case "ProviderConfig":
 		pc := &v1beta1.ProviderConfig{}
 		if err := kube.Get(ctx, types.NamespacedName{Namespace: mg.GetNamespace(), Name: ref.Name}, pc); err != nil {
 			return nil, errors.Wrap(err, "cannot get ProviderConfig")
 		}
 		spec = pc.Spec
-		// A namespaced ProviderConfig's Secret is in its own namespace.
+		// A namespaced ProviderConfig's Secret is always read from its own
+		// namespace, whatever the reference says: a team's ProviderConfig
+		// can't point at another namespace's credentials.
 		if spec.Credentials.SecretRef != nil {
 			spec.Credentials.SecretRef.Namespace = mg.GetNamespace()
 		}
@@ -77,8 +79,9 @@ func resolve(ctx context.Context, kube client.Client, mg resource.ModernManaged)
 	return &spec, nil
 }
 
-// credentials: JSON under the selected key, or (the key missing) the flat
-// keys url and token of the Secret.
+// credentials reads the credentials: JSON under the selected key or, when
+// the Secret has no such key, its flat keys url and token. Sources other than
+// a Secret go through Crossplane's extractor (JSON).
 func credentials(ctx context.Context, kube client.Client, spec *v1beta1.ProviderConfigSpec) (Credentials, error) {
 	var c Credentials
 	sel := spec.Credentials.CommonCredentialSelectors

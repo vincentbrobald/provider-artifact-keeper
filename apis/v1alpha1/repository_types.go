@@ -8,14 +8,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// RepositoryParameters: what Artifact Keeper's repository should be. Its key
-// (the path segment clients use: /maven/<key>, /npm/<key>, ...) is the
+// RepositoryParameters are what Artifact Keeper's repository should be. Its
+// key (the path segment clients use: /maven/<key>, /npm/<key>, ...) is the
 // external name, by default the object's name.
 type RepositoryParameters struct {
 	// Display name; the key when empty.
 	// +optional
 	Name string `json:"name,omitempty"`
 
+	// Free text shown with the repository; empty clears it.
 	// +optional
 	Description string `json:"description,omitempty"`
 
@@ -41,12 +42,14 @@ type RepositoryParameters struct {
 	// +optional
 	Public *bool `json:"public,omitempty"`
 
-	// Storage quota in bytes; none when unset.
+	// Storage quota in bytes. Unset: no quota at creation, and an existing
+	// quota is left as it is (removing the field doesn't remove a quota).
 	// +optional
 	QuotaBytes *int64 `json:"quotaBytes,omitempty"`
 
-	// Members of a virtual repository, first first: a Repository object of
-	// this namespace (repositoryRef) or any repository's key.
+	// Members of a virtual repository, in priority order (the first is
+	// searched first): a Repository object of this namespace (repositoryRef)
+	// or any repository's key.
 	// +optional
 	Members []RepositoryMember `json:"members,omitempty"`
 }
@@ -54,19 +57,28 @@ type RepositoryParameters struct {
 // RepositoryMember is one member of a virtual repository.
 // +kubebuilder:validation:XValidation:rule="has(self.repositoryRef) != has(self.key)",message="exactly one of repositoryRef and key"
 type RepositoryMember struct {
+	// A Repository object of this namespace.
 	// +optional
 	RepositoryRef *LocalReference `json:"repositoryRef,omitempty"`
+	// A repository's key (any repository, including ones no Repository
+	// object manages).
 	// +optional
 	Key string `json:"key,omitempty"`
 }
 
-// RepositoryObservation: what Artifact Keeper reports.
+// RepositoryObservation is what Artifact Keeper reports about the
+// repository.
 type RepositoryObservation struct {
-	ID               string   `json:"id,omitempty"`
-	Format           string   `json:"format,omitempty"`
-	Type             string   `json:"type,omitempty"`
-	StorageUsedBytes int64    `json:"storageUsedBytes,omitempty"`
-	Members          []string `json:"members,omitempty"`
+	// The repository's ID (references from permissions and tokens use it).
+	ID string `json:"id,omitempty"`
+	// Its package format.
+	Format string `json:"format,omitempty"`
+	// local, remote or virtual.
+	Type string `json:"type,omitempty"`
+	// Bytes its packages take.
+	StorageUsedBytes int64 `json:"storageUsedBytes,omitempty"`
+	// A virtual repository's member keys, in priority order.
+	Members []string `json:"members,omitempty"`
 }
 
 // RepositorySpec defines the desired state of a Repository.

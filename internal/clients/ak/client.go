@@ -58,6 +58,8 @@ func IsConflict(err error) bool {
 	return asAPIError(err, &e) && e.Status == http.StatusConflict
 }
 
+// asAPIError matches err itself, not what it wraps: this package returns
+// APIErrors unwrapped, and callers test an error before wrapping it.
 func asAPIError(err error, target **APIError) bool {
 	e, ok := err.(*APIError) //nolint:errorlint // never wrapped in this package
 	if ok {
@@ -66,6 +68,9 @@ func asAPIError(err error, target **APIError) bool {
 	return ok
 }
 
+// do sends in as JSON (when not nil) to /api/v1<path> and decodes the
+// answer into out (when not nil). An answer other than 2xx is an APIError,
+// with at most the first 300 characters of its body.
 func (c *Client) do(ctx context.Context, method, path string, in, out any) error {
 	var body io.Reader
 	if in != nil {
@@ -103,6 +108,7 @@ func (c *Client) do(ctx context.Context, method, path string, in, out any) error
 	return json.Unmarshal(b, out)
 }
 
+// pagination is the paging information of a paged list.
 type pagination struct {
 	Page       int `json:"page"`
 	TotalPages int `json:"total_pages"`
@@ -147,12 +153,14 @@ type UpdateRepository struct {
 	CurationDefaultAction string  `json:"curation_default_action"`
 }
 
-// Member is a member of a virtual repository.
+// Member is a member of a virtual repository, as PUT .../members takes it.
 type Member struct {
 	Key      string `json:"member_key"`
 	Priority int    `json:"priority"`
 }
 
+// memberRow is a member as GET .../members returns it: the same, under
+// another key name (member_repo_key).
 type memberRow struct {
 	Key      string `json:"member_repo_key"`
 	Priority int    `json:"priority"`
@@ -291,7 +299,8 @@ func (c *Client) GetPermission(ctx context.Context, id string) (*Permission, err
 }
 
 // FindPermission returns the permission of this principal on this target,
-// or nil.
+// or nil. The server filters by the four values, so the answer holds at
+// most one permission (one per principal and target): one page is enough.
 func (c *Client) FindPermission(ctx context.Context, principalType, principalID, targetType, targetID string) (*Permission, error) {
 	var out struct {
 		Items []Permission `json:"items"`
@@ -346,7 +355,7 @@ type OIDCProvider struct {
 }
 
 // OIDCProviderRequest is the body of POST and PUT /admin/sso/oidc: the
-// whole desired configuration (attribute_mapping replaced as a whole).
+// whole desired configuration, client secret included.
 type OIDCProviderRequest struct {
 	Name                    string         `json:"name"`
 	IssuerURL               string         `json:"issuer_url"`
@@ -388,7 +397,9 @@ func (c *Client) CreateOIDCProvider(ctx context.Context, in OIDCProviderRequest)
 	return p, c.do(ctx, http.MethodPost, "/admin/sso/oidc", in, p)
 }
 
-// UpdateOIDCProvider changes an OIDC login.
+// UpdateOIDCProvider changes an OIDC login. It replaces the attribute
+// mapping as a whole (attribute_mapping_replace), so that keys the request
+// no longer sets go away.
 func (c *Client) UpdateOIDCProvider(ctx context.Context, id string, in OIDCProviderRequest) error {
 	in.AttributeMappingReplace = true
 	return c.do(ctx, http.MethodPut, "/admin/sso/oidc/"+esc(id), in, nil)
@@ -416,7 +427,7 @@ func (c *Client) GetServiceAccount(ctx context.Context, id string) (*ServiceAcco
 }
 
 // FindServiceAccount returns the service account with this user name
-// (svc-<name>), or nil.
+// (svc-<name>), or nil. The list isn't paged: it holds every account.
 func (c *Client) FindServiceAccount(ctx context.Context, username string) (*ServiceAccount, error) {
 	var out struct {
 		Items []ServiceAccount `json:"items"`
@@ -432,7 +443,8 @@ func (c *Client) FindServiceAccount(ctx context.Context, username string) (*Serv
 	return nil, nil
 }
 
-// CreateServiceAccount makes svc-<name>.
+// CreateServiceAccount makes svc-<name>: name is without the prefix, which
+// Artifact Keeper adds.
 func (c *Client) CreateServiceAccount(ctx context.Context, name, description string) (*ServiceAccount, error) {
 	s := &ServiceAccount{}
 	in := map[string]any{"name": name}
@@ -442,7 +454,8 @@ func (c *Client) CreateServiceAccount(ctx context.Context, name, description str
 	return s, c.do(ctx, http.MethodPost, "/service-accounts", in, s)
 }
 
-// UpdateServiceAccount changes display name and activity.
+// UpdateServiceAccount changes display name and activity. A nil one is sent
+// as JSON null, which Artifact Keeper takes as "unchanged".
 func (c *Client) UpdateServiceAccount(ctx context.Context, id string, displayName *string, active *bool) error {
 	return c.do(ctx, http.MethodPatch, "/service-accounts/"+esc(id),
 		map[string]any{"display_name": displayName, "is_active": active}, nil)
