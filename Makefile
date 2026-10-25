@@ -5,7 +5,7 @@
 # instead (e.g. make podman-generate).
 #
 #   make generate      deepcopy, crossplane-runtime methods, CRDs (package/crds)
-#   make test          unit tests
+#   make test          unit tests; fails below COVERAGE_MIN % coverage of internal/
 #   make build         bin/provider
 #   make licenses      bin/licenses: the licenses of everything in bin/provider
 #                      (go-licenses: texts, and the source of MPL modules) and ours
@@ -16,14 +16,20 @@
 GO_IMAGE ?= docker.io/library/golang:1.26.10
 VERSION  ?= $(shell cat VERSION)
 GO_LICENSES_VERSION ?= v2.0.1
+COVERAGE_MIN ?= 90
 
 .PHONY: generate test build licenses package-yaml image podman-%
 
 generate:
 	cd apis && go generate -tags generate ./...
 
+# Coverage counts internal/ only: apis/ is mostly generated, cmd/ is wiring.
 test:
-	go test ./...
+	@mkdir -p .build
+	go test -coverprofile=.build/cover.out ./...
+	@grep -E '^mode:|/internal/' .build/cover.out > .build/cover-internal.out
+	@go tool cover -func=.build/cover-internal.out | awk -v min=$(COVERAGE_MIN) \
+	  '/^total:/ { sub("%", "", $$3); print "coverage of internal/: " $$3 "% (minimum " min "%)"; exit ($$3 + 0 < min) }'
 
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X $(shell go list -m)/internal/version.Version=$(VERSION)" \

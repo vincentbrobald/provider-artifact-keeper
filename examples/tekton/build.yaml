@@ -47,7 +47,7 @@ spec:
               - {name: GOFLAGS, value: -buildvcs=false}
           steps:
             - name: clone
-              image: docker.io/alpine/git:2.52.0
+              image: docker.io/alpine/git:2.54.0
               script: |
                 #!/bin/sh
                 set -eu
@@ -60,7 +60,7 @@ spec:
                 git fetch -q --depth 1 origin "{{ revision }}"
                 git checkout -q FETCH_HEAD
                 git log -1 --format='%h %s'
-            # Vet, unit tests, and the generated code (deepcopy, resource
+            # Vet, unit tests and their coverage (make test), and the generated code (deepcopy, resource
             # methods, CRDs) must be what `make generate` gives from apis/:
             # a type change without regenerating fails here. Then the binary
             # the image takes (make build).
@@ -75,7 +75,7 @@ spec:
                 cd src
                 git config --global --add safe.directory '*'
                 go vet ./...
-                go test ./...
+                make test
                 make generate
                 if ! git diff --quiet || [ -n "$(git status --porcelain --untracked-files=all)" ]; then
                   echo "generated code is out of date: run 'make generate' and commit" >&2
@@ -103,7 +103,7 @@ spec:
             # Fails on HIGH or CRITICAL vulnerabilities that have a fix. Its
             # database comes through the registry's mirror of ghcr.io.
             - name: scan
-              image: ghcr.io/aquasecurity/trivy:0.75.0
+              image: ghcr.io/aquasecurity/trivy:0.76.1
               env:
                 - {name: TRIVY_CACHE_DIR, value: /tekton/home/trivy}
                 - {name: SSL_CERT_DIR, value: "$(workspaces.ca.path):/etc/ssl/certs"}

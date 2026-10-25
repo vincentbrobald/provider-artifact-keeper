@@ -5,10 +5,14 @@ package controller
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	xpv2 "github.com/crossplane/crossplane/apis/v2/core/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -537,5 +541,90 @@ func TestTokenDeletedBeforeObserve(t *testing.T) {
 	}
 	if _, err := e.Delete(ctx, cr); err != nil {
 		t.Fatalf("no account left: %v", err)
+	}
+}
+
+// TestDeleteKeepsServerErrors checks that every kind's Delete returns an
+// error other than 404, so that the finalizer stays while the object may
+// still exist.
+func TestDeleteKeepsServerErrors(t *testing.T) {
+	ctx := context.Background()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "down", http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+	_, kube, _ := setup(t)
+	c := ak.New(srv.URL, "t", srv.Client())
+	const id = "33333333-3333-3333-3333-333333333333"
+	withID := func(o metav1.Object) metav1.Object { meta.SetExternalName(o, id); return o }
+	tok := &v1alpha1.Token{ObjectMeta: om("t")}
+	tok.Status.AtProvider.ServiceAccountID = id
+	for _, tc := range []struct {
+		e  managed.ExternalClient
+		mg resource.Managed
+	}{
+		{&repositoryClient{kube: kube, ak: c}, withID(&v1alpha1.Repository{ObjectMeta: om("r")}).(resource.Managed)},
+		{&permissionClient{kube: kube, ak: c}, withID(&v1alpha1.Permission{ObjectMeta: om("p")}).(resource.Managed)},
+		{&serviceAccountClient{kube: kube, ak: c}, withID(&v1alpha1.ServiceAccount{ObjectMeta: om("s")}).(resource.Managed)},
+		{&oidcClient{kube: kube, ak: c}, withID(&v1alpha1.OIDCProvider{ObjectMeta: om("o")}).(resource.Managed)},
+		{&tokenClient{kube: kube, ak: c}, withID(tok).(resource.Managed)},
+	} {
+		if _, err := tc.e.Delete(ctx, tc.mg); err == nil || !strings.Contains(err.Error(), "500") {
+			t.Errorf("%T: want the 500, got %v", tc.mg, err)
+		}
+	}
+}
+
+// TestTokenObservedWhileDeleting checks that a token being deleted reads as
+// existing without its repositories being looked up: they may be gone.
+func TestTokenObservedWhileDeleting(t *testing.T) {
+	ctx := context.Background()
+	sa := &v1alpha1.ServiceAccount{ObjectMeta: om("ci")}
+	meta.SetExternalName(sa, "22222222-2222-2222-2222-222222222222")
+	sa.Status.AtProvider.Username = "svc-a-ci"
+	_, kube, c := setup(t, sa)
+	e := &tokenClient{kube: kube, ak: c}
+	cr := &v1alpha1.Token{ObjectMeta: om("ci"), Spec: v1alpha1.TokenSpec{ForProvider: v1alpha1.TokenParameters{
+		ServiceAccountRef: v1alpha1.LocalReference{Name: "ci"}, Name: "ci", Scopes: []string{"read:artifacts"}}}}
+	if _, err := e.Create(ctx, cr); err != nil {
+		t.Fatal(err)
+	}
+	cr.Spec.ForProvider.RepositoryKeys = []string{"gone"}
+	deleting(cr)
+	if obs, err := e.Observe(ctx, cr); err != nil || !obs.ResourceExists || !obs.ResourceUpToDate {
+		t.Fatalf("exists, so that Delete revokes it: %+v, %v", obs, err)
+	}
+}
+
+// TestTokenWaitsForTheAccountID checks that a token of a ServiceAccount not
+// created yet (no ID) waits instead of being made.
+func TestTokenWaitsForTheAccountID(t *testing.T) {
+	_, kube, c := setup(t, &v1alpha1.ServiceAccount{ObjectMeta: om("ci")})
+	e := &tokenClient{kube: kube, ak: c}
+	cr := &v1alpha1.Token{ObjectMeta: om("ci"), Spec: v1alpha1.TokenSpec{ForProvider: v1alpha1.TokenParameters{
+		ServiceAccountRef: v1alpha1.LocalReference{Name: "ci"}, Name: "ci"}}}
+	if _, err := e.Create(context.Background(), cr); err == nil || !strings.Contains(err.Error(), "no ID yet") {
+		t.Fatalf("want no ID yet, got %v", err)
+	}
+}
+
+// TestOIDCRedirectURI checks that the redirect URI goes in the attribute
+// mapping, and that a mapping key the spec doesn't set (a redirect URI
+// removed from the spec) reads as drift.
+func TestOIDCRedirectURI(t *testing.T) {
+	cr := &v1alpha1.OIDCProvider{Spec: v1alpha1.OIDCProviderSpec{ForProvider: v1alpha1.OIDCProviderParameters{
+		Name: "keycloak", RedirectURI: "https://ak/callback"}}}
+	want := request(cr, "")
+	if want.AttributeMapping["redirect_uri"] != "https://ak/callback" {
+		t.Fatalf("redirect URI in the mapping: %v", want.AttributeMapping)
+	}
+	have := &ak.OIDCProvider{Name: "keycloak", HasSecret: true, Scopes: want.Scopes, IsEnabled: true, AutoCreateUsers: true,
+		PKCEEnabled: true, MapGroupsToGroups: true, AttributeMapping: want.AttributeMapping}
+	if !oidcUpToDate(have, want) {
+		t.Fatal("same mapping: up to date")
+	}
+	cr.Spec.ForProvider.RedirectURI = ""
+	if oidcUpToDate(have, request(cr, "")) {
+		t.Fatal("a redirect URI left on the server must show")
 	}
 }

@@ -6,12 +6,13 @@
 
 Go 1.26 (or `make podman-<target>`): `make generate` (controller-gen:
 deepcopy and CRDs; angryjet: crossplane-runtime's resource methods),
-`make test`, `make build`, `make licenses` (`bin/licenses`), `make image`.
+`make test` (fails below 90% statement coverage of `internal/`;
+`COVERAGE_MIN` sets it), `make build`, `make licenses` (`bin/licenses`), `make image`.
 
 ## CI and releases
 
 `.tekton/build.yaml` (namespace `provider-artifact-keeper` on cluster lab):
-vet, tests, generated code current, `make build licenses package-yaml`, one image
+vet, tests and their coverage (`make test`), generated code current, `make build licenses package-yaml`, one image
 build (kaniko, Containerfile stage `package`: the binary plus
 `package.yaml`, which Crossplane reads from the image), a Trivy scan
 (fixable HIGH/CRITICAL fail it); on `main` skopeo pushes
