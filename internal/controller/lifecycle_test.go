@@ -460,7 +460,7 @@ func TestKinds(t *testing.T) {
 	}
 }
 
-// TestDefaults checks displayName and orDefault.
+// TestDefaults checks displayName.
 func TestDefaults(t *testing.T) {
 	r := &v1alpha1.Repository{ObjectMeta: om("k")}
 	meta.SetExternalName(r, "key")
@@ -468,8 +468,8 @@ func TestDefaults(t *testing.T) {
 		t.Fatal("the key when no name is set")
 	}
 	r.Spec.ForProvider.Name = "Shown"
-	if displayName(r) != "Shown" || orDefault("x", "d") != "x" || orDefault("", "d") != "d" {
-		t.Fatal("a set value wins over the default")
+	if displayName(r) != "Shown" {
+		t.Fatal("the spec name when set")
 	}
 }
 

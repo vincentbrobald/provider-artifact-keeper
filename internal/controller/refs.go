@@ -6,10 +6,11 @@ package controller
 import (
 	"context"
 	"regexp"
-	"sort"
+	"slices"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/errors"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -71,19 +72,41 @@ func serviceAccount(ctx context.Context, kube client.Client, ns string, ref v1al
 // sameSet reports whether a and b hold the same strings, in any order
 // (duplicates count). Neither is modified.
 func sameSet(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
+	return slices.Equal(slices.Sorted(slices.Values(a)), slices.Sorted(slices.Values(b)))
+}
+
+// as returns mg as a *T, or an error if it is another kind.
+func as[T any, PT interface {
+	*T
+	resource.Managed
+}](mg resource.Managed) (PT, error) {
+	cr, ok := mg.(PT)
+	if !ok {
+		var t T
+		return nil, errors.Errorf("not a %T", t)
 	}
-	x := append([]string(nil), a...)
-	y := append([]string(nil), b...)
-	sort.Strings(x)
-	sort.Strings(y)
-	for i := range x {
-		if x[i] != y[i] {
-			return false
+	return cr, nil
+}
+
+// getOrAdopt returns the external object by cr's ID or, without one, the one
+// find returns, whose ID it then records as cr's external name (adopted). A
+// nil object means there is none; an object gone by ID is no error.
+func getOrAdopt[T any](ctx context.Context, cr metav1.Object, get func(context.Context, string) (*T, error), find func() (*T, error), idOf func(*T) string) (have *T, adopted bool, err error) {
+	if id := serverID(cr); id != "" {
+		have, err = get(ctx, id)
+		if ak.IsNotFound(err) {
+			return nil, false, nil
 		}
+		return have, false, err
 	}
-	return true
+	if have, err = find(); err != nil || have == nil {
+		return nil, false, err
+	}
+	// The reconciler saves the object (and so this external name) only after
+	// an observation that reports a late initialization: the caller must
+	// report adopted as one, or the ID is lost.
+	meta.SetExternalName(cr, idOf(have))
+	return have, true, nil
 }
 
 // deref returns *p, or def when p is nil.

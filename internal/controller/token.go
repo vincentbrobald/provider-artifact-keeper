@@ -35,15 +35,6 @@ type tokenClient struct {
 	ak   *ak.Client
 }
 
-// asToken returns mg as a Token, or an error if it is another kind.
-func asToken(mg resource.Managed) (*v1alpha1.Token, error) {
-	cr, ok := mg.(*v1alpha1.Token)
-	if !ok {
-		return nil, errors.New("not a Token")
-	}
-	return cr, nil
-}
-
 // repositoryIDs returns the IDs of the repositories cr restricts the token
 // to: those of repositoryRefs, then those of repositoryKeys. It fails if one
 // is missing or a referenced Repository has no key yet.
@@ -87,7 +78,7 @@ func (e *tokenClient) find(ctx context.Context, saID string, match func(ak.Token
 // from the spec, reads as missing so that Create replaces it; otherwise it is
 // up to date (a new name or expiresInDays waits for the next token).
 func (e *tokenClient) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
-	cr, err := asToken(mg)
+	cr, err := as[v1alpha1.Token](mg)
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
@@ -135,7 +126,7 @@ func (e *tokenClient) Observe(ctx context.Context, mg resource.Managed) (managed
 // revokes the token it replaces and any other of the same name, and returns
 // the value and the account's user name as connection details.
 func (e *tokenClient) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	cr, err := asToken(mg)
+	cr, err := as[v1alpha1.Token](mg)
 	if err != nil {
 		return managed.ExternalCreation{}, err
 	}
@@ -189,7 +180,7 @@ func (e *tokenClient) Create(ctx context.Context, mg resource.Managed) (managed.
 
 // Update does nothing: a token is never changed in place (see tokenClient).
 func (e *tokenClient) Update(_ context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	_, err := asToken(mg)
+	_, err := as[v1alpha1.Token](mg)
 	return managed.ExternalUpdate{}, err
 }
 
@@ -198,7 +189,7 @@ func (e *tokenClient) Update(_ context.Context, mg resource.Managed) (managed.Ex
 // ID, or with the account gone, there is nothing to revoke; a token already
 // gone is no error.
 func (e *tokenClient) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
-	cr, err := asToken(mg)
+	cr, err := as[v1alpha1.Token](mg)
 	if err != nil {
 		return managed.ExternalDelete{}, err
 	}

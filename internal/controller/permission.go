@@ -24,15 +24,6 @@ type permissionClient struct {
 	ak   *ak.Client
 }
 
-// asPermission returns mg as a Permission, or an error if it is another kind.
-func asPermission(mg resource.Managed) (*v1alpha1.Permission, error) {
-	cr, ok := mg.(*v1alpha1.Permission)
-	if !ok {
-		return nil, errors.New("not a Permission")
-	}
-	return cr, nil
-}
-
 // desired returns the permission cr asks for, with the IDs of its repository
 // and principal looked up. It fails if either doesn't exist (yet), e.g. a
 // group mirrored from the OIDC login before its first member signed in.
@@ -81,7 +72,7 @@ func (e *permissionClient) desired(ctx context.Context, cr *v1alpha1.Permission)
 // is being deleted, only existence is checked, so that a deletion doesn't
 // wait for principal or repository.
 func (e *permissionClient) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
-	cr, err := asPermission(mg)
+	cr, err := as[v1alpha1.Permission](mg)
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
@@ -100,29 +91,11 @@ func (e *permissionClient) Observe(ctx context.Context, mg resource.Managed) (ma
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
-	var have *ak.Permission
-	adopted := false
-	if id := serverID(cr); id != "" {
-		have, err = e.ak.GetPermission(ctx, id)
-		if ak.IsNotFound(err) {
-			return managed.ExternalObservation{ResourceExists: false}, nil
-		}
-		if err != nil {
-			return managed.ExternalObservation{}, err
-		}
-	} else {
-		have, err = e.ak.FindPermission(ctx, want.PrincipalType, want.PrincipalID, want.TargetType, want.TargetID)
-		if err != nil {
-			return managed.ExternalObservation{}, err
-		}
-		if have == nil {
-			return managed.ExternalObservation{ResourceExists: false}, nil
-		}
-		// Adopted: the reconciler saves the object (and so this external
-		// name) only after an observation that reports a late
-		// initialization; without it the ID would be lost.
-		meta.SetExternalName(cr, have.ID)
-		adopted = true
+	have, adopted, err := getOrAdopt(ctx, cr, e.ak.GetPermission, func() (*ak.Permission, error) {
+		return e.ak.FindPermission(ctx, want.PrincipalType, want.PrincipalID, want.TargetType, want.TargetID)
+	}, func(p *ak.Permission) string { return p.ID })
+	if err != nil || have == nil {
+		return managed.ExternalObservation{ResourceExists: false}, err
 	}
 	cr.Status.AtProvider = v1alpha1.PermissionObservation{PrincipalType: have.PrincipalType, PrincipalID: have.PrincipalID, RepositoryID: have.TargetID}
 	cr.SetConditions(xpv2.Available())
@@ -133,7 +106,7 @@ func (e *permissionClient) Observe(ctx context.Context, mg resource.Managed) (ma
 
 // Create grants the permission and records its ID as the external name.
 func (e *permissionClient) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	cr, err := asPermission(mg)
+	cr, err := as[v1alpha1.Permission](mg)
 	if err != nil {
 		return managed.ExternalCreation{}, err
 	}
@@ -151,7 +124,7 @@ func (e *permissionClient) Create(ctx context.Context, mg resource.Managed) (man
 
 // Update replaces the permission with the one cr asks for.
 func (e *permissionClient) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	cr, err := asPermission(mg)
+	cr, err := as[v1alpha1.Permission](mg)
 	if err != nil {
 		return managed.ExternalUpdate{}, err
 	}
@@ -165,7 +138,7 @@ func (e *permissionClient) Update(ctx context.Context, mg resource.Managed) (man
 // Delete deletes the permission; without an ID, or if it is already gone,
 // there is nothing to do.
 func (e *permissionClient) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
-	cr, err := asPermission(mg)
+	cr, err := as[v1alpha1.Permission](mg)
 	if err != nil {
 		return managed.ExternalDelete{}, err
 	}

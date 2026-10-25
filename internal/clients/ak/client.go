@@ -15,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 )
@@ -201,23 +202,13 @@ func (c *Client) GetMembers(ctx context.Context, key string) ([]Member, error) {
 	for _, r := range out.Members {
 		m = append(m, Member(r))
 	}
-	sortMembers(m)
+	slices.SortStableFunc(m, func(a, b Member) int { return a.Priority - b.Priority })
 	return m, nil
 }
 
 // SetMembers replaces the members of the virtual repository with this key.
 func (c *Client) SetMembers(ctx context.Context, key string, m []Member) error {
 	return c.do(ctx, http.MethodPut, "/repositories/"+esc(key)+"/members", map[string]any{"members": m}, nil)
-}
-
-// sortMembers sorts m in place by ascending priority (an insertion sort,
-// stable: members of equal priority keep their order).
-func sortMembers(m []Member) {
-	for i := 1; i < len(m); i++ {
-		for j := i; j > 0 && m[j].Priority < m[j-1].Priority; j-- {
-			m[j], m[j-1] = m[j-1], m[j]
-		}
-	}
 }
 
 // Group is a user group.
@@ -229,20 +220,25 @@ type Group struct {
 
 // FindGroup returns the group named name, or nil if there is none.
 func (c *Client) FindGroup(ctx context.Context, name string) (*Group, error) {
+	return findPaged(ctx, c, "/groups", name, func(g Group) string { return g.Name })
+}
+
+// findPaged returns the item of the paged list at path whose nameOf is name,
+// or nil if there is none. The search can return items of other names too:
+// only an exact name matches. The pages are read in turn until one matches
+// or the last page is read.
+func findPaged[T any](ctx context.Context, c *Client, path, name string, nameOf func(T) string) (*T, error) {
 	for page := 1; ; page++ {
 		var out struct {
-			Items      []Group    `json:"items"`
+			Items      []T        `json:"items"`
 			Pagination pagination `json:"pagination"`
 		}
-		// The search can return groups of other names too: only an exact
-		// name matches. The pages are read in turn until one
-		// matches or the last page is read.
 		q := url.Values{"search": {name}, "page": {fmt.Sprint(page)}, "per_page": {"100"}}
-		if err := c.do(ctx, http.MethodGet, "/groups?"+q.Encode(), nil, &out); err != nil {
+		if err := c.do(ctx, http.MethodGet, path+"?"+q.Encode(), nil, &out); err != nil {
 			return nil, err
 		}
 		for i := range out.Items {
-			if out.Items[i].Name == name {
+			if nameOf(out.Items[i]) == name {
 				return &out.Items[i], nil
 			}
 		}
@@ -258,27 +254,9 @@ type User struct {
 	Username string `json:"username"`
 }
 
-// FindUser returns the user named name, or nil if there is none. Like
-// FindGroup, it reads the search's pages until an exact match.
+// FindUser returns the user named name, or nil if there is none.
 func (c *Client) FindUser(ctx context.Context, name string) (*User, error) {
-	for page := 1; ; page++ {
-		var out struct {
-			Items      []User     `json:"items"`
-			Pagination pagination `json:"pagination"`
-		}
-		q := url.Values{"search": {name}, "page": {fmt.Sprint(page)}, "per_page": {"100"}}
-		if err := c.do(ctx, http.MethodGet, "/users?"+q.Encode(), nil, &out); err != nil {
-			return nil, err
-		}
-		for i := range out.Items {
-			if out.Items[i].Username == name {
-				return &out.Items[i], nil
-			}
-		}
-		if page >= out.Pagination.TotalPages {
-			return nil, nil
-		}
-	}
+	return findPaged(ctx, c, "/users", name, func(u User) string { return u.Username })
 }
 
 // Permission grants a principal (PrincipalType group, user or

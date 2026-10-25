@@ -5,6 +5,7 @@ package controller
 
 import (
 	"context"
+	"slices"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/errors"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
@@ -22,15 +23,6 @@ import (
 type repositoryClient struct {
 	kube client.Client
 	ak   *ak.Client
-}
-
-// asRepository returns mg as a Repository, or an error if it is another kind.
-func asRepository(mg resource.Managed) (*v1alpha1.Repository, error) {
-	cr, ok := mg.(*v1alpha1.Repository)
-	if !ok {
-		return nil, errors.New("not a Repository")
-	}
-	return cr, nil
 }
 
 // desiredMembers returns the keys of cr's members, in priority order. It
@@ -61,7 +53,7 @@ func displayName(cr *v1alpha1.Repository) string {
 // an error, since neither can change. Nothing is compared while cr is being
 // deleted.
 func (e *repositoryClient) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
-	cr, err := asRepository(mg)
+	cr, err := as[v1alpha1.Repository](mg)
 	if err != nil {
 		return managed.ExternalObservation{}, err
 	}
@@ -101,7 +93,7 @@ func (e *repositoryClient) Observe(ctx context.Context, mg resource.Managed) (ma
 			got = append(got, m.Key)
 		}
 		cr.Status.AtProvider.Members = got
-		upToDate = upToDate && equalOrdered(got, want)
+		upToDate = upToDate && slices.Equal(got, want)
 	}
 	cr.SetConditions(xpv2.Available())
 	return managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: upToDate}, nil
@@ -109,7 +101,7 @@ func (e *repositoryClient) Observe(ctx context.Context, mg resource.Managed) (ma
 
 // Create creates the repository, then sets the members of a virtual one.
 func (e *repositoryClient) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	cr, err := asRepository(mg)
+	cr, err := as[v1alpha1.Repository](mg)
 	if err != nil {
 		return managed.ExternalCreation{}, err
 	}
@@ -144,7 +136,7 @@ func (e *repositoryClient) setMembers(ctx context.Context, cr *v1alpha1.Reposito
 // Update sends the spec's name, description, public access and quota (left
 // as it is when unset), then sets the members of a virtual repository.
 func (e *repositoryClient) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	cr, err := asRepository(mg)
+	cr, err := as[v1alpha1.Repository](mg)
 	if err != nil {
 		return managed.ExternalUpdate{}, err
 	}
@@ -168,7 +160,7 @@ func (e *repositoryClient) Update(ctx context.Context, mg resource.Managed) (man
 // Delete deletes the repository and its packages; one already gone is no
 // error.
 func (e *repositoryClient) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
-	cr, err := asRepository(mg)
+	cr, err := as[v1alpha1.Repository](mg)
 	if err != nil {
 		return managed.ExternalDelete{}, err
 	}
@@ -181,17 +173,3 @@ func (e *repositoryClient) Delete(ctx context.Context, mg resource.Managed) (man
 
 // Disconnect does nothing: the client holds no connection.
 func (e *repositoryClient) Disconnect(context.Context) error { return nil }
-
-// equalOrdered reports whether a and b hold the same strings in the same
-// order.
-func equalOrdered(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
